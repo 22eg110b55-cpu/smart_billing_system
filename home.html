@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kirana Shop Billing System</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Print-only bill container (updated by JS, hidden on screen) -->
+    <div id="printBillOnly" class="print-bill" style="display: none;"></div>
+
+    <div class="container">
+        <div class="header">
+            <h1>🏪 Kirana Shop Pro</h1>
+            <p>Smart inventory management and billing solution</p>
+        </div>
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('billing')">🧾 Billing</button>
+            <button class="tab" onclick="showTab('inventory')">📦 Inventory</button>
+            <button class="tab" onclick="showTab('customers')">👥 Customers</button>
+            <button class="tab" onclick="showTab('analytics')">📊 Analytics</button>
+            <button class="tab" onclick="showTab('expenses')">💰 Expenses</button>
+            <button class="tab" onclick="showTab('settings')">⚙️ Settings</button>
+        </div>
+
+        <div id="inventory" class="tab-content">
+            <h2>Add New Item to Inventory</h2>
+            <div class="form-row form-row-3">
+                <div class="form-group">
+                    <label for="itemName">Item Name</label>
+                    <input type="text" id="itemName" placeholder="Enter item name">
+                </div>
+                <div class="form-group">
+                    <label for="itemPrice">Price per Unit (₹)</label>
+                    <input type="number" id="itemPrice" placeholder="0.00" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label for="itemUnit">Unit</label>
+                    <select id="itemUnit">
+                        <option value="kg">Kilogram (kg)</option>
+                        <option value="g">Gram (g)</option>
+                        <option value="l">Liter (l)</option>
+                        <option value="ml">Milliliter (ml)</option>
+                        <option value="piece">Piece</option>
+                        <option value="packet">Packet</option>
+                        <option value="box">Box</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-row form-row-3">
+                <div class="form-group">
+                    <label for="itemStock">Stock Quantity</label>
+                    <input type="number" id="itemStock" placeholder="100" min="0">
+                </div>
+                <div class="form-group">
+                    <label for="itemMinStock">Min Stock Alert</label>
+                    <input type="number" id="itemMinStock" placeholder="10" min="1">
+                </div>
+                <div class="form-group">
+                    <label for="itemExpiry">Expiry Date</label>
+                    <input type="date" id="itemExpiry">
+                </div>
+            </div>
+            
+            <div style="text-align: center; margin-bottom: 30px;">
+                <button class="btn btn-primary" onclick="addItem()">➕ Add Item to Inventory</button>
+            </div>
+
+            <h3>Current Inventory</h3>
+            <div id="inventoryList" class="inventory-grid">
+                </div>
+        </div>
+
+        <div id="billing" class="tab-content active">
+            <h2>Create New Bill</h2>
+            
+            <div class="customer-card">
+                <h3>Customer Information</h3>
+                <div class="form-row form-row-3">
+                    <div class="form-group">
+                        <label for="customerName">Customer Name (Optional)</label>
+                        <input type="text" id="customerName" placeholder="Enter customer name" oninput="checkCustomerLoyalty()">
+                    </div>
+                    <div class="form-group">
+                        <label for="customerPhone">Phone Number (Optional)</label>
+                        <input type="tel" id="customerPhone" placeholder="Enter phone number" oninput="checkCustomerLoyalty()">
+                    </div>
+                    <div class="form-group">
+                        <label>Loyalty Points</label>
+                        <div id="loyaltyDisplay" style="padding: 12px; background: #e8f5e8; border-radius: 8px; font-weight: 600; color: #2e7d32; text-align: center;">
+                            Points: 0 | Discount: 0%
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="searchItem">🔍 Search Item</label>
+                <div class="autocomplete-container">
+                    <input type="text" id="searchItem" class="search-box" placeholder="Start typing item name..." oninput="showSuggestions()" onkeydown="handleKeyDown(event)">
+                    <div id="suggestions" class="autocomplete-suggestions"></div>
+                </div>
+            </div>
+
+            <div class="form-row form-row-2">
+                <div class="form-group">
+                    <label for="quantity">📦 Quantity</label>
+                    <input type="number" id="quantity" class="search-box" placeholder="Enter quantity" step="0.1" min="0">
+                </div>
+                <div class="form-group" style="display: flex; align-items: end;">
+                    <button class="btn btn-success" onclick="addToBill()" style="height: 70px; font-size: 20px; width: 100%;">➕ Add to Bill</button>
+                </div>
+            </div>
+
+            <div class="customer-card" style="background: linear-gradient(135deg, #fff3e0, #fff8e1); border-color: #ffb300; margin-top: 10px;">
+                <h3 style="color: #f57c00;">✏️ Manual Item Entry (No Inventory Link)</h3>
+                <div class="form-row form-row-3">
+                    <div class="form-group">
+                        <label for="manualItemName">Item Name</label>
+                        <input type="text" id="manualItemName" placeholder="Enter item name">
+                    </div>
+                    <div class="form-group">
+                        <label for="manualItemQuantity">Quantity</label>
+                        <input type="number" id="manualItemQuantity" placeholder="Enter quantity" step="0.1" min="0.1">
+                    </div>
+                    <div class="form-group">
+                        <label for="manualItemPrice">Price per Unit (₹)</label>
+                        <input type="number" id="manualItemPrice" placeholder="0.00" step="0.01" min="0">
+                    </div>
+                </div>
+                <div style="text-align: center; margin-top: 10px;">
+                    <button class="btn btn-secondary" onclick="addManualItemToBill()">➕ Add Manual Item to Bill</button>
+                </div>
+            </div>
+
+            <div class="customer-card" style="background: linear-gradient(135deg, #e3f2fd, #f0f8ff); border-color: #2196f3;">
+                <h3 style="color: #1976d2;">💳 Payment Method</h3>
+                <div class="form-row form-row-3">
+                    <div class="form-group">
+                        <label for="paymentMethod">Payment Type</label>
+                        <select id="paymentMethod" onchange="handlePaymentMethodChange()">
+                            <option value="cash">💵 Cash</option>
+                            <option value="upi">📱 UPI</option>
+                            <option value="card">💳 Card</option>
+                            <option value="credit">📝 Credit</option>
+                            <option value="split">🔄 Split Payment</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="upiIdGroup" style="display: none;">
+                        <label for="upiId">UPI ID</label>
+                        <input type="text" id="upiId" placeholder="merchant@upi" disabled>
+                    </div>
+                    <div class="form-group" id="splitAmountGroup" style="display: none;">
+                        <label for="splitAmount">Cash Amount (₹)</label>
+                        <input type="number" id="splitAmount" placeholder="0.00" step="0.01" oninput="calculateSplitPayment()">
+                    </div>
+                </div>
+                <div id="paymentDetails" style="margin-top: 15px; padding: 15px; background: rgba(255, 255, 255, 0.7); border-radius: 10px; display: none;">
+                    <div id="qrCodeContainer" class="upi-qr-container" style="display: none;">
+                        <h4>Scan to Pay</h4>
+                        <div id="qrCanvasContainer" class="upi-qr-code"></div>
+                        <p style="font-size: 14px; margin-top: 10px;">UPI ID: <span id="displayedUpiId"></span></p>
+                    </div>
+                    <div id="summaryText"></div>
+                </div>
+            </div>
+
+            <div class="billing-section">
+                <div>
+                    <h3>Bill Items</h3>
+                    <div id="billItems" class="bill-items">
+                        <p style="text-align: center; color: #666; padding: 40px;">No items added yet</p>
+                    </div>
+                </div>
+                <div>
+                    <div id="billTotal" class="bill-total">
+                        Total: ₹0.00
+                    </div>
+                    <div style="margin-top: 20px; text-align: center;">
+                        <button class="btn btn-primary" onclick="showBill()" id="showBillBtn" disabled style="margin-bottom: 10px; width: 100%;">📄 Show Bill</button>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                            <button class="btn btn-success" onclick="saveBill()" id="saveBillBtn" disabled>💾 Save Bill</button>
+                            <button class="btn btn-secondary" onclick="showSavedBills()">📋 Saved Bills</button>
+                        </div>
+                        <button class="btn btn-danger" onclick="clearBill()" style="width: 100%;">🗑️ Clear Bill</button>
+                </div>
+            </div>
+        </div>
+
+            <div style="margin-top: 25px;">
+                <h3>🧾 Kirana Bill Preview</h3>
+                <div id="inlineBillPreview" class="print-bill" style="background: #ffffff; border-radius: 15px; border: 2px solid #e0e0e0; margin-top: 10px;">
+                    <!-- Bill preview will be generated here -->
+                </div>
+                <div style="text-align: center; margin-top: 10px;">
+                    <button class="btn btn-primary" onclick="printBill()">🖨️ Print Bill</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="savedBillsModal" class="saved-bills-modal">
+            <div class="saved-bills-content">
+                <div class="bill-modal-header">
+                    <h2>📋 Saved Bills</h2>
+                    <button class="close-modal" onclick="closeSavedBillsModal()">&times;</button>
+                </div>
+                <div class="saved-bills-toolbar">
+                    <input type="text" id="savedBillsSearch" placeholder="Search bills by customer, phone, item, or amount..." oninput="filterSavedBills()">
+                </div>
+                <div id="savedBillsList" style="padding: 20px; max-height: 70vh; overflow-y: auto;">
+                    </div>
+            </div>
+        </div>
+
+        <div id="customers" class="tab-content">
+            <h2>Customer Management</h2>
+            <div class="responsive-grid grid-2">
+                <div>
+                    <h3>Add New Customer</h3>
+                    <div class="form-group">
+                        <label for="newCustomerName">Customer Name</label>
+                        <input type="text" id="newCustomerName" placeholder="Enter customer name">
+                    </div>
+                    <div class="form-group">
+                        <label for="newCustomerPhone">Phone Number</label>
+                        <input type="tel" id="newCustomerPhone" placeholder="Enter phone number">
+                    </div>
+                    <div class="form-group">
+                        <label for="newCustomerBirthday">Birthday (Optional)</label>
+                        <input type="date" id="newCustomerBirthday">
+                    </div>
+                    <button class="btn btn-primary" onclick="addCustomer()">➕ Add Customer</button>
+                </div>
+                <div>
+                    <h3>Credit Management</h3>
+                    <div class="form-group">
+                        <label for="creditCustomer">Select Customer</label>
+                        <select id="creditCustomer">
+                            <option value="">Select customer...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="creditAmount">Amount (₹)</label>
+                        <input type="number" id="creditAmount" placeholder="0.00" step="0.01">
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn btn-danger" onclick="addCredit()">Add to Credit</button>
+                        <button class="btn btn-success" onclick="collectPayment()">Collect Payment</button>
+                    </div>
+                    <div class="credit-status-card" id="creditStatusCard">
+                        Select a customer to view their credit insights.
+                    </div>
+                    <div class="credit-history-card">
+                        <div class="credit-history-header">
+                            <h4>Recent Credit Activity</h4>
+                            <button class="btn btn-secondary btn-small" onclick="clearCreditHistory()">Clear History</button>
+                        </div>
+                        <div id="creditHistoryList" class="credit-history-list">
+                            <p style="text-align: center; color: #666;">No credit activity yet.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <h3>Customer List</h3>
+            <div class="responsive-table">
+                <div id="customerList" style="background: #f8f9fa; padding: 20px; border-radius: 15px; border: 2px solid #e0e0e0;">
+                    <p style="text-align: center; color: #666;">No customers added yet</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="analytics" class="tab-content">
+            <div class="analytics-header">
+                <h2>Business Analytics</h2>
+                <button class="btn btn-primary" onclick="printAnalyticsReport()">🧾 Download Analytics Report</button>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-card" style="background: linear-gradient(135deg, #4caf50, #45a049);">
+                    <h3>Today's Revenue</h3>
+                    <div id="todayRevenue" class="stat-value">₹0.00</div>
+                </div>
+                <div class="stat-card" style="background: linear-gradient(135deg, #2196f3, #1976d2);">
+                    <h3>This Week</h3>
+                    <div id="weekRevenue" class="stat-value">₹0.00</div>
+                </div>
+                <div class="stat-card" style="background: linear-gradient(135deg, #ff9800, #f57c00);">
+                    <h3>This Month</h3>
+                    <div id="monthRevenue" class="stat-value">₹0.00</div>
+                </div>
+                <div class="stat-card" style="background: linear-gradient(135deg, #f44336, #d32f2f);">
+                    <h3>Total Credit Due</h3>
+                    <div id="totalCreditDue" class="stat-value">₹0.00</div>
+                </div>
+            </div>
+            <div class="responsive-grid grid-2">
+                <div>
+                    <h3>Top Selling Items (This Month)</h3>
+                    <div id="topSellingItems" style="background: #f8f9fa; padding: 20px; border-radius: 15px; border: 2px solid #e0e0e0; min-height: 200px;">
+                        <p style="text-align: center; color: #666;">No sales data available</p>
+                    </div>
+                </div>
+                <div>
+                    <h3>Expiring Items (Next 30 Days)</h3>
+                    <div id="expiringItems" style="background: #fff3cd; padding: 20px; border-radius: 15px; border: 2px solid #ffc107; min-height: 200px;">
+                        <p style="text-align: center; color: #666;">No expiring items</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="expenses" class="tab-content">
+            <h2>Expense Management</h2>
+            <div class="responsive-grid grid-2">
+                <div>
+                    <h3>Add New Expense</h3>
+                    <div class="form-group">
+                        <label for="expenseCategory">Category</label>
+                        <select id="expenseCategory">
+                            <option value="rent">Rent</option>
+                            <option value="electricity">Electricity</option>
+                            <option value="supplies">Supplies</option>
+                            <option value="transport">Transport</option>
+                            <option value="maintenance">Maintenance</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="expenseAmount">Amount (₹)</label>
+                        <input type="number" id="expenseAmount" placeholder="0.00" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label for="expenseDescription">Description</label>
+                        <input type="text" id="expenseDescription" placeholder="Enter description">
+                    </div>
+                    <div class="form-group">
+                        <label for="expenseDate">Date</label>
+                        <input type="date" id="expenseDate">
+                    </div>
+                    <button class="btn btn-primary" onclick="addExpense()">➕ Add Expense</button>
+                </div>
+                <div>
+                    <h3>Monthly Expense Summary</h3>
+                    <div id="expenseSummary" style="background: #f8f9fa; padding: 20px; border-radius: 15px; border: 2px solid #e0e0e0; min-height: 200px;">
+                        <p style="text-align: center; color: #666;">No expense data for this month.</p>
+                    </div>
+                    <h3>Expense List (This Month)</h3>
+                    <div id="expenseList" class="responsive-table">
+                        <p style="text-align: center; color: #666;">No expenses logged yet.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="settings" class="tab-content">
+            <h2>Application Settings</h2>
+            <div class="form-row form-row-2">
+                <div class="form-group">
+                    <label for="shopName">Shop Name</label>
+                    <input type="text" id="shopName" placeholder="Your Kirana Store">
+                </div>
+                <div class="form-group">
+                    <label for="shopAddress">Shop Address</label>
+                    <input type="text" id="shopAddress" placeholder="123 Main St, City">
+                </div>
+            </div>
+            <div class="form-row form-row-2">
+                <div class="form-group">
+                    <label for="shopContact">Shop Contact</label>
+                    <input type="tel" id="shopContact" placeholder="9876543210">
+                </div>
+                <div class="form-group">
+                    <label for="settingUpiId">Your UPI ID</label>
+                    <input type="text" id="settingUpiId" placeholder="yourshop@upi">
+                </div>
+            </div>
+            <div class="form-row form-row-2">
+                <div class="form-group">
+                    <label for="gstNumber">GST Number (Optional)</label>
+                    <input type="text" id="gstNumber" placeholder="22AAAAA0000A1Z5">
+                </div>
+            </div>
+            <div style="text-align: center; margin-top: 20px;">
+                <button class="btn btn-success" onclick="saveSettings()">Save Settings</button>
+            </div>
+            <div style="text-align: center; margin-top: 40px; border-top: 1px solid #ddd; padding-top: 20px;">
+                <button class="btn btn-danger" onclick="resetData()">Factory Reset Application</button>
+                <p style="color: #666; font-size: 14px; margin-top: 10px;">Warning: This will delete all inventory, sales, customer, and expense data permanently.</p>
+            </div>
+        </div>
+        <footer class="site-footer">
+            © 2025 Venu Kiranam. All rights reserved.
+        </footer>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,1115 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+    background-size: 400% 400%;
+    animation: gradientShift 15s ease infinite;
+    min-height: 100vh;
+    padding: 10px;
+}
+
+@keyframes gradientShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    border-radius: 25px;
+    padding: 20px;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    position: relative;
+    overflow: hidden;
+}
+
+.container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #667eea, #764ba2, #f093fb);
+    animation: shimmer 3s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 25px;
+    color: #333;
+}
+
+.header h1 {
+    font-size: clamp(1.8rem, 4vw, 2.5rem);
+    margin-bottom: 8px;
+    color: #667eea;
+    font-weight: 700;
+}
+
+.header p {
+    font-size: clamp(0.9rem, 2vw, 1.1rem);
+    color: #666;
+}
+
+.tabs {
+    display: flex;
+    margin-bottom: 25px;
+    border-bottom: 2px solid #e0e0e0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.tab {
+    padding: 12px 20px;
+    background: none;
+    border: none;
+    font-size: clamp(14px, 2vw, 16px);
+    font-weight: 600;
+    cursor: pointer;
+    color: #666;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    min-width: fit-content;
+}
+
+.tab.active {
+    color: #667eea;
+    border-bottom: 3px solid #667eea;
+    background: rgba(102, 126, 234, 0.1);
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #333;
+    font-size: clamp(14px, 2vw, 16px);
+}
+
+.form-group input, .form-group select, .form-group textarea {
+    width: 100%;
+    padding: 16px;
+    border: 2px solid #e0e0e0;
+    border-radius: 12px;
+    font-size: clamp(16px, 2.5vw, 18px);
+    font-weight: 500;
+    transition: all 0.3s ease;
+    min-height: 52px;
+    background: white;
+    color: #333;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+    transform: translateY(-2px);
+}
+
+.form-group input::placeholder {
+    color: #999;
+    font-weight: 400;
+}
+
+.btn {
+    padding: 14px 24px;
+    border: none;
+    border-radius: 12px;
+    font-size: clamp(14px, 2vw, 16px);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin: 5px;
+    min-height: 48px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+}
+
+.btn-success {
+    background: linear-gradient(135deg, #4caf50, #45a049);
+    color: white;
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #f44336, #d32f2f);
+    color: white;
+}
+
+.btn-secondary {
+    background: linear-gradient(135deg, #6c757d, #5a6268);
+    color: white;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.btn-small {
+    padding: 6px 12px;
+    font-size: 12px;
+    min-height: auto;
+}
+
+/* Enhanced Search Grid */
+.search-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.search-box-container {
+    position: relative;
+}
+
+.search-box {
+    width: 100%;
+    padding: 20px;
+    font-size: clamp(18px, 3vw, 24px);
+    border: 3px solid #e0e0e0;
+    border-radius: 15px;
+    background: white;
+    color: #333;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    min-height: 70px;
+}
+
+.search-box:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+    transform: scale(1.02);
+}
+
+.autocomplete-container {
+    position: relative;
+}
+
+.autocomplete-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 3px solid #667eea;
+    border-top: none;
+    border-radius: 0 0 15px 15px;
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(10px);
+}
+
+.autocomplete-suggestion {
+    padding: 18px 20px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    transition: all 0.3s ease;
+    font-size: clamp(14px, 2vw, 16px);
+    line-height: 1.5;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.autocomplete-suggestion:hover {
+    background: linear-gradient(135deg, #f8f9ff, #e8f0ff);
+    transform: translateX(8px);
+    border-left: 4px solid #667eea;
+}
+
+.autocomplete-suggestion.selected {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    transform: translateX(8px);
+    border-left: 4px solid #fff;
+}
+
+.suggestion-name {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.autocomplete-suggestion.selected .suggestion-name,
+.autocomplete-suggestion.selected .suggestion-price,
+.autocomplete-suggestion.selected .suggestion-stock {
+    color: white;
+}
+
+.suggestion-price {
+    color: #667eea;
+    font-weight: 500;
+    font-size: clamp(12px, 1.8vw, 14px);
+}
+
+.suggestion-stock {
+    color: #28a745;
+    font-size: clamp(11px, 1.5vw, 12px);
+    font-weight: 500;
+}
+
+/* Responsive Grid Layouts */
+.responsive-grid {
+    display: grid;
+    gap: 20px;
+    margin-bottom: 25px;
+}
+
+.grid-2 {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.grid-3 {
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+.grid-4 {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.inventory-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.inventory-item {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 15px;
+    border: 2px solid #e0e0e0;
+    transition: all 0.3s ease;
+}
+
+.inventory-item:hover {
+    border-color: #667eea;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.billing-section {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 25px;
+    margin-top: 25px;
+}
+
+.bill-items {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 15px;
+    border: 2px solid #e0e0e0;
+    min-height: 300px;
+}
+
+.bill-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    border-bottom: 2px solid #e0e0e0;
+    margin-bottom: 10px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.bill-total {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    padding: 25px;
+    border-radius: 15px;
+    text-align: center;
+    font-size: clamp(20px, 4vw, 28px);
+    font-weight: 700;
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+}
+
+/* Bill Modal */
+.bill-modal {
+    display: none;
+    position: fixed;
+    z-index: 10000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(5px);
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    align-items: center;
+    justify-content: center;
+}
+
+.bill-modal.show {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+.bill-modal-content {
+    background-color: white;
+    margin: 0;
+    padding: 0;
+    border-radius: 15px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+    animation: modalSlideIn 0.3s ease;
+    position: relative;
+}
+
+.saved-bills-toolbar {
+    display: flex;
+    align-items: center;
+    padding: 15px 20px;
+    border-bottom: 1px solid #e0e0e0;
+    background: #fafafa;
+}
+
+.saved-bills-toolbar input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    font-size: 15px;
+    transition: all 0.2s ease;
+}
+
+.saved-bills-toolbar input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+@keyframes modalSlideIn {
+    from { transform: translateY(-50px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.bill-modal-header {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    padding: 20px;
+    border-radius: 15px 15px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.close-modal {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 28px;
+    cursor: pointer;
+    padding: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.close-modal:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: rotate(90deg);
+}
+
+.print-bill {
+    padding: 30px;
+    background: white;
+    font-family: 'Courier New', monospace;
+}
+
+.shop-header {
+    text-align: center;
+    margin-bottom: 25px;
+    border-bottom: 2px dashed #333;
+    padding-bottom: 15px;
+}
+
+.shop-header h1 {
+    font-size: clamp(20px, 4vw, 28px);
+    margin-bottom: 8px;
+    color: #333;
+}
+
+.bill-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: clamp(12px, 2vw, 14px);
+}
+
+.bill-table th, .bill-table td {
+    padding: 8px 4px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+.bill-table th {
+    background-color: #f8f9fa;
+    font-weight: 700;
+    border-bottom: 2px solid #333;
+}
+
+.bill-table td:last-child, .bill-table th:last-child {
+    text-align: right;
+}
+
+.bill-footer {
+    text-align: center;
+    margin-top: 25px;
+    padding-top: 15px;
+    border-top: 2px dashed #333;
+    font-size: clamp(12px, 2vw, 14px);
+}
+
+.bill-proprietor {
+    text-align: right;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    width: 100%;
+}
+
+.bill-payment-info {
+    margin-top: 15px;
+    padding: 12px;
+    border-radius: 10px;
+    background: #f8f9fa;
+    border: 1px dashed #999;
+    font-size: 14px;
+}
+
+.bill-payment-info span {
+    display: inline-block;
+    margin-right: 10px;
+    font-weight: 600;
+}
+
+/* Stats Cards */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stat-card {
+    padding: 25px;
+    border-radius: 15px;
+    text-align: center;
+    color: white;
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: inherit;
+    opacity: 0.9;
+    z-index: 1;
+}
+
+.stat-card > * {
+    position: relative;
+    z-index: 2;
+}
+
+.stat-card h3 {
+    font-size: clamp(14px, 2vw, 16px);
+    margin-bottom: 10px;
+    opacity: 0.9;
+}
+
+.stat-card .stat-value {
+    font-size: clamp(24px, 4vw, 32px);
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+
+.analytics-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.analytics-header h2 {
+    margin: 0;
+}
+
+/* Quick Action Buttons */
+.quick-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+    justify-content: center;
+}
+
+.quick-actions .btn {
+    flex: 1;
+    min-width: 120px;
+    max-width: 200px;
+}
+
+/* Mobile Optimizations */
+@media (max-width: 768px) {
+    .container {
+        padding: 15px;
+        margin: 5px;
+        border-radius: 20px;
+    }
+
+    .header h1 {
+        font-size: 1.8rem;
+    }
+
+    .tabs {
+        padding-bottom: 10px;
+    }
+
+    .tab {
+        padding: 10px 15px;
+        font-size: 14px;
+    }
+
+    .search-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .billing-section {
+        grid-template-columns: 1fr;
+    }
+
+    .quick-actions {
+        justify-content: stretch;
+    }
+
+    .quick-actions .btn {
+        flex: 1;
+        min-width: auto;
+    }
+
+    .bill-modal-content {
+        width: 95%;
+        margin: 5% auto;
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    }
+
+    .inventory-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .container {
+        padding: 10px;
+        margin: 2px;
+    }
+
+    .header {
+        margin-bottom: 15px;
+    }
+
+    .form-group input, .form-group select {
+        padding: 14px;
+        font-size: 16px;
+    }
+
+    .btn {
+        padding: 12px 16px;
+        font-size: 14px;
+    }
+
+    .search-box {
+        padding: 16px;
+        font-size: 18px;
+        min-height: 60px;
+    }
+}
+
+/* Print Styles */
+@media print {
+    @page {
+        size: 80mm auto;
+        margin: 3mm;
+    }
+
+    body, body * {
+        visibility: hidden;
+    }
+    .print-bill, .print-bill * {
+        visibility: visible;
+    }
+    /* Only show the dedicated print bill container on paper */
+    #printBillOnly {
+        display: block !important;
+        margin: 0;
+        padding: 0;
+    }
+    /* Hide the full application layout to avoid extra blank pages */
+    .container {
+        display: none !important;
+    }
+
+    /* Thermal receipt style for kirana bill */
+    #printBillOnly {
+        font-family: 'Courier New', monospace;
+        width: 80mm;
+        max-width: 80mm;
+        padding: 4mm 2mm;
+        box-sizing: border-box;
+        font-size: 11px;
+    }
+
+    #printBillOnly .shop-header {
+        margin-bottom: 6px;
+        padding-bottom: 4px;
+        border-bottom: 1px dashed #000;
+    }
+
+    #printBillOnly .shop-header h1 {
+        font-size: 15px;
+        margin-bottom: 2px;
+    }
+
+    #printBillOnly .shop-header p {
+        font-size: 10px;
+        margin: 0;
+    }
+
+    #printBillOnly .bill-table {
+        margin: 6px 0;
+        font-size: 11px;
+    }
+
+    #printBillOnly .bill-table th,
+    #printBillOnly .bill-table td {
+        padding: 2px 0;
+        border-bottom: 1px dashed #000;
+    }
+
+    #printBillOnly .bill-table th {
+        background: none;
+        font-weight: 700;
+        border-bottom: 1px solid #000;
+    }
+
+    #printBillOnly .bill-footer {
+        margin-top: 6px;
+        padding-top: 4px;
+        border-top: 1px dashed #000;
+        font-size: 10px;
+    }
+}
+
+/* Loading Animation */
+.loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Notification Styles */
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 25px;
+    border-radius: 10px;
+    color: white;
+    font-weight: 600;
+    z-index: 10001;
+    animation: slideInRight 0.3s ease;
+    max-width: 300px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.notification.hide {
+    animation: slideOutRight 0.3s ease forwards;
+}
+
+.notification.success {
+    background: linear-gradient(135deg, #4caf50, #45a049);
+}
+
+.notification.error {
+    background: linear-gradient(135deg, #f44336, #d32f2f);
+}
+
+.notification.info {
+    background: linear-gradient(135deg, #2196f3, #1976d2);
+}
+
+@keyframes slideInRight {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideOutRight {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(100%); opacity: 0; }
+}
+
+/* Enhanced Form Layouts */
+.form-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+/* UPI QR Code Styles */
+.upi-qr-container {
+    text-align: center;
+    padding: 20px;
+    background: white;
+    border-radius: 15px;
+    border: 2px solid #4caf50;
+    margin: 15px 0;
+}
+
+.upi-qr-code {
+    width: 200px;
+    height: 200px;
+    margin: 15px auto;
+    border: 3px solid #4caf50;
+    border-radius: 10px;
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: #666;
+    text-align: center;
+    line-height: 1.4;
+    overflow: hidden;
+}
+
+.upi-qr-code canvas {
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 5px;
+}
+
+.payment-summary {
+    background: linear-gradient(135deg, #e8f5e8, #f0fff0);
+    border: 2px solid #4caf50;
+    border-radius: 15px;
+    padding: 20px;
+    margin: 15px 0;
+}
+
+.payment-method-badge {
+    display: inline-block;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    margin: 5px;
+}
+
+.payment-cash { background: #e8f5e8; color: #2e7d32; }
+.payment-upi { background: #e3f2fd; color: #1976d2; }
+.payment-card { background: #fff3e0; color: #f57c00; }
+.payment-credit { background: #ffebee; color: #d32f2f; }
+.payment-split { background: #f3e5f5; color: #7b1fa2; }
+
+/* Saved Bills Modal */
+.saved-bills-modal {
+    display: none;
+    position: fixed;
+    z-index: 10000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(5px);
+    align-items: center;
+    justify-content: center;
+}
+
+.saved-bills-content {
+    background-color: white;
+    margin: 2% auto;
+    padding: 0;
+    border-radius: 15px;
+    width: 95%;
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+    animation: modalSlideIn 0.3s ease;
+}
+
+.saved-bill-item {
+    background: #f8f9fa;
+    border: 2px solid #e0e0e0;
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 15px;
+    transition: all 0.3s ease;
+}
+
+.saved-bill-item:hover {
+    border-color: #667eea;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.form-row-2 {
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+.form-row-3 {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+/* Customer Info Card */
+.customer-card {
+    background: linear-gradient(135deg, #e8f5e8, #f0fff0);
+    border: 2px solid #4caf50;
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.credit-status-card {
+    margin-top: 15px;
+    background: #f3fafd;
+    border: 2px solid #90caf9;
+    border-radius: 12px;
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    transition: border-color 0.3s ease, background 0.3s ease;
+}
+
+.credit-status-card.has-overdue {
+    border-color: #f44336;
+    background: #ffebee;
+}
+
+.credit-status-amount span {
+    display: block;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #1976d2;
+}
+
+.credit-status-card.has-overdue .credit-status-amount span {
+    color: #d32f2f;
+}
+
+.credit-status-amount small {
+    font-size: 12px;
+    color: #666;
+}
+
+.credit-status-card.has-overdue .credit-status-amount small {
+    color: #b71c1c;
+}
+
+.credit-history-card {
+    margin-top: 15px;
+    background: #f8f9fa;
+    border: 2px solid #e0e0e0;
+    border-radius: 15px;
+    padding: 15px;
+}
+
+.credit-history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.credit-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.credit-history-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: white;
+    border: 1px solid #e0e0e0;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.credit-history-entry.credit-added {
+    border-left: 4px solid #4caf50;
+}
+
+.credit-history-entry.credit-paid {
+    border-left: 4px solid #2196f3;
+}
+
+.credit-history-amount span {
+    display: block;
+    font-weight: 700;
+}
+
+.credit-history-entry.credit-added .credit-history-amount span {
+    color: #388e3c;
+}
+
+.credit-history-entry.credit-paid .credit-history-amount span {
+    color: #1976d2;
+}
+
+.credit-history-amount small {
+    font-size: 12px;
+    color: #777;
+}
+
+.customer-card h3 {
+    color: #2e7d32;
+    margin-bottom: 15px;
+    font-size: clamp(16px, 2.5vw, 18px);
+}
+
+/* Enhanced Bill Item Display */
+.bill-item-details {
+    flex: 1;
+}
+
+.bill-item-name {
+    font-size: clamp(16px, 2.5vw, 18px);
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 5px;
+}
+
+.bill-item-info {
+    font-size: clamp(14px, 2vw, 16px);
+    color: #666;
+}
+
+.bill-item-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.bill-item-total {
+    font-size: clamp(18px, 3vw, 22px);
+    font-weight: 700;
+    color: #667eea;
+}
+
+/* Improved Responsive Tables */
+.responsive-table {
+    overflow-x: auto;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.responsive-table table {
+    min-width: 600px;
+}
+
+.site-footer {
+    text-align: center;
+    margin-top: 40px;
+    padding-top: 15px;
+    border-top: 1px solid #e0e0e0;
+    color: #555;
+    font-size: 14px;
+    font-weight: 600;
+}
