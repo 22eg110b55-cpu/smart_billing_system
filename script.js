@@ -14,13 +14,15 @@ document.addEventListener('DOMContentLoaded', () => {
             discountAmount: 0,
             paymentMethod: 'cash',
             paymentDetails: null,
+            isSaved: false,
         },
         settings: {
             shopName: 'My Kirana Store',
             shopAddress: '123 Main Street, City',
             shopContact: '9876543210',
             upiId: 'yourshop@upi',
-            gstNumber: ''
+            gstNumber: '',
+            securityPassword: '' // Password for sensitive operations
         },
         selectedSuggestionIndex: -1
     };
@@ -62,18 +64,29 @@ document.addEventListener('DOMContentLoaded', () => {
         summaryText: document.getElementById('summaryText'),
         showBillBtn: document.getElementById('showBillBtn'),
         saveBillBtn: document.getElementById('saveBillBtn'),
+        shareBillBtn: document.getElementById('shareBillBtn'),
         // Modals
         inlineBillPreview: document.getElementById('inlineBillPreview'),
         printBillOnly: document.getElementById('printBillOnly'),
         savedBillsModal: document.getElementById('savedBillsModal'),
         savedBillsList: document.getElementById('savedBillsList'),
         savedBillsSearch: document.getElementById('savedBillsSearch'),
+        creditBillModal: document.getElementById('creditBillModal'),
+        creditBillContent: document.getElementById('creditBillContent'),
+        passwordModal: document.getElementById('passwordModal'),
+        passwordInput: document.getElementById('passwordInput'),
+        currentPassword: document.getElementById('currentPassword'),
+        newPassword: document.getElementById('newPassword'),
+        confirmPassword: document.getElementById('confirmPassword'),
         // Customers
         newCustomerName: document.getElementById('newCustomerName'),
         newCustomerPhone: document.getElementById('newCustomerPhone'),
         newCustomerBirthday: document.getElementById('newCustomerBirthday'),
         creditCustomer: document.getElementById('creditCustomer'),
         creditAmount: document.getElementById('creditAmount'),
+        creditBill: document.getElementById('creditBill'),
+        reminderList: document.getElementById('reminderList'),
+        reminderLanguage: document.getElementById('reminderLanguage'),
         customerList: document.getElementById('customerList'),
         creditStatusCard: document.getElementById('creditStatusCard'),
         creditHistoryList: document.getElementById('creditHistoryList'),
@@ -91,6 +104,10 @@ document.addEventListener('DOMContentLoaded', () => {
         expenseDate: document.getElementById('expenseDate'),
         expenseSummary: document.getElementById('expenseSummary'),
         expenseList: document.getElementById('expenseList'),
+        // Calendar
+        calendarContainer: document.getElementById('calendarContainer'),
+        calendarMonthYear: document.getElementById('calendarMonthYear'),
+        upcomingFestivals: document.getElementById('upcomingFestivals'),
         // Settings
         shopName: document.getElementById('shopName'),
         shopAddress: document.getElementById('shopAddress'),
@@ -116,18 +133,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     ...parsed.currentBill,
                 },
             };
-            state.creditTransactions = state.creditTransactions || [];
-            state.savedBillsFilter = state.savedBillsFilter || '';
-            state.currentBill.items = state.currentBill.items || [];
-            state.currentBill.customer = state.currentBill.customer || { name: '', phone: '' };
-            state.currentBill.discountAmount = state.currentBill.discountAmount || 0;
-            state.currentBill.paymentMethod = state.currentBill.paymentMethod || 'cash';
-            state.currentBill.paymentDetails = state.currentBill.paymentDetails || null;
+        state.creditTransactions = state.creditTransactions || [];
+        state.savedBillsFilter = state.savedBillsFilter || '';
+        state.currentBill.items = state.currentBill.items || [];
+        state.currentBill.customer = state.currentBill.customer || { name: '', phone: '' };
+        state.currentBill.discountAmount = state.currentBill.discountAmount || 0;
+        state.currentBill.paymentMethod = state.currentBill.paymentMethod || 'cash';
+        state.currentBill.paymentDetails = state.currentBill.paymentDetails || null;
+        state.currentBill.isSaved = state.currentBill.isSaved || false;
+        
+        // Initialize creditBills and lastReminderDate for existing customers
+        state.customers = state.customers || [];
+        state.customers.forEach(customer => {
+            if (!customer.creditBills) customer.creditBills = [];
+            if (!customer.lastReminderDate) customer.lastReminderDate = null;
+        });
             state.settings = {
                 ...state.settings,
                 ...(parsed.settings || {})
             };
             state.settings.gstNumber = state.settings.gstNumber || '';
+        state.settings.securityPassword = state.settings.securityPassword || '';
+        state.settings.reminderLanguage = state.settings.reminderLanguage || 'en';
         }
     };
 
@@ -178,6 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tabId === 'customers') renderCustomerList();
         if (tabId === 'analytics') renderAnalytics();
         if (tabId === 'expenses') renderExpenses();
+        if (tabId === 'calendar') renderCalendar();
         if (tabId === 'settings') renderSettings();
     };
 
@@ -437,6 +465,7 @@ document.addEventListener('DOMContentLoaded', () => {
             a.billItems.innerHTML = `<p style="text-align: center; color: #666; padding: 40px;">No items added yet</p>`;
             if (a.showBillBtn) a.showBillBtn.disabled = true;
             if (a.saveBillBtn) a.saveBillBtn.disabled = true;
+            if (a.shareBillBtn) a.shareBillBtn.disabled = true;
         } else {
             state.currentBill.items.forEach((item, index) => {
                 const billItemElement = document.createElement('div');
@@ -455,6 +484,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             if (a.showBillBtn) a.showBillBtn.disabled = false;
             if (a.saveBillBtn) a.saveBillBtn.disabled = false;
+            if (a.shareBillBtn) a.shareBillBtn.disabled = false;
         }
         a.billTotal.textContent = `Total: ${formatCurrency(state.currentBill.total)}`;
         handlePaymentMethodChange(); // Update payment details whenever the total changes
@@ -471,10 +501,12 @@ document.addEventListener('DOMContentLoaded', () => {
     window.removeFromBill = (index) => {
         const item = state.currentBill.items[index];
 
-        // Add stock back to inventory
-        const inventoryItem = state.inventory.find(i => i.name === item.name);
-        if (inventoryItem) {
-            inventoryItem.stock += item.quantity;
+        // Only restore stock if bill hasn't been saved and item is not manual
+        if (!state.currentBill.isSaved && !item.isManual) {
+            const inventoryItem = state.inventory.find(i => i.name === item.name);
+            if (inventoryItem) {
+                inventoryItem.stock += item.quantity;
+            }
         }
 
         state.currentBill.items.splice(index, 1);
@@ -484,14 +516,26 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.clearBill = () => {
-        if (confirm('Are you sure you want to clear the current bill? This will restore the stock of all items.')) {
-            // Restore stock for all items
-            state.currentBill.items.forEach(billItem => {
-                const inventoryItem = state.inventory.find(i => i.name === billItem.name);
-                if (inventoryItem) {
-                    inventoryItem.stock += billItem.quantity;
-                }
-            });
+        const confirmMsg = state.currentBill.isSaved 
+            ? 'Are you sure you want to clear the current bill? (Stock will not be restored as bill was already saved.)'
+            : 'Are you sure you want to clear the current bill? This will restore the stock of all items.';
+        
+        if (confirm(confirmMsg)) {
+            // Only restore stock if the bill hasn't been saved yet
+            if (!state.currentBill.isSaved) {
+                state.currentBill.items.forEach(billItem => {
+                    // Only restore stock for items that are linked to inventory (not manual items)
+                    if (!billItem.isManual) {
+                        const inventoryItem = state.inventory.find(i => i.name === billItem.name);
+                        if (inventoryItem) {
+                            inventoryItem.stock += billItem.quantity;
+                        }
+                    }
+                });
+                showNotification('Bill cleared and stock restored.', 'info');
+            } else {
+                showNotification('Bill cleared. (Stock not restored - bill was already saved)', 'info');
+            }
 
             state.currentBill.items = [];
             state.currentBill.total = 0;
@@ -499,6 +543,7 @@ document.addEventListener('DOMContentLoaded', () => {
             state.currentBill.paymentMethod = 'cash';
             state.currentBill.discountAmount = 0;
             state.currentBill.paymentDetails = null;
+            state.currentBill.isSaved = false;
             a.customerName.value = '';
             a.customerPhone.value = '';
             a.loyaltyDisplay.textContent = 'Points: 0 | Discount: 0%';
@@ -508,9 +553,13 @@ document.addEventListener('DOMContentLoaded', () => {
             handlePaymentMethodChange();
 
             updateBill();
+            
+            // Clear the generated bill preview
+            if (a.inlineBillPreview) a.inlineBillPreview.innerHTML = '';
+            if (a.printBillOnly) a.printBillOnly.innerHTML = '';
+            
             saveState();
             renderInventory();
-            showNotification('Bill cleared and stock restored.', 'info');
         }
     };
 
@@ -591,6 +640,162 @@ document.addEventListener('DOMContentLoaded', () => {
         window.print();
     };
 
+    const generateShareableBillText = (bill, billNumber = null) => {
+        const shopName = state.settings.shopName;
+        const shopAddress = state.settings.shopAddress;
+        const shopContact = state.settings.shopContact;
+        const gstNumber = state.settings.gstNumber;
+        
+        const billDate = bill.date ? new Date(bill.date).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN');
+        const billTime = bill.date ? new Date(bill.date).toLocaleTimeString('en-IN') : new Date().toLocaleTimeString('en-IN');
+        const billNum = billNumber || 'Current Bill';
+        
+        let billText = `🧾 *${shopName}*\n`;
+        billText += `📍 ${shopAddress}\n`;
+        billText += `📞 ${shopContact}\n`;
+        if (gstNumber) billText += `GSTIN: ${gstNumber}\n`;
+        billText += `\n━━━━━━━━━━━━━━━━━━━━\n`;
+        billText += `📋 *Bill #${billNum}*\n`;
+        billText += `📅 Date: ${billDate}\n`;
+        billText += `🕐 Time: ${billTime}\n`;
+        billText += `\n━━━━━━━━━━━━━━━━━━━━\n`;
+        
+        if (bill.customer?.name || bill.customer?.phone) {
+            billText += `👤 *Customer:* ${bill.customer.name || 'N/A'}\n`;
+            billText += `📱 *Contact:* ${bill.customer.phone || 'N/A'}\n`;
+            billText += `\n━━━━━━━━━━━━━━━━━━━━\n`;
+        }
+        
+        billText += `\n*Items:*\n`;
+        bill.items.forEach((item, index) => {
+            billText += `${index + 1}. ${item.name}\n`;
+            billText += `   ${item.quantity} ${item.unit} × ${formatCurrency(item.price)} = ${formatCurrency(item.totalPrice)}\n`;
+        });
+        
+        billText += `\n━━━━━━━━━━━━━━━━━━━━\n`;
+        billText += `💰 *Subtotal:* ${formatCurrency(bill.total)}\n`;
+        if (bill.discountAmount > 0) {
+            billText += `🎁 *Discount:* -${formatCurrency(bill.discountAmount)}\n`;
+        }
+        const grandTotal = bill.total - (bill.discountAmount || 0);
+        billText += `\n💵 *GRAND TOTAL: ${formatCurrency(grandTotal)}*\n`;
+        
+        if (bill.paymentDetails) {
+            billText += `\n💳 *Payment:* ${bill.paymentDetails.label || 'Not specified'}\n`;
+            if (bill.paymentDetails.breakdown && bill.paymentDetails.breakdown.length > 0) {
+                bill.paymentDetails.breakdown.forEach(entry => {
+                    billText += `   ${entry.label}: ${formatCurrency(entry.amount)}\n`;
+                });
+            }
+        }
+        
+        billText += `\n━━━━━━━━━━━━━━━━━━━━\n`;
+        billText += `🙏 *Thank you for your visit!*\n`;
+        billText += `\nPowered by Kirana Shop Pro`;
+        
+        return billText;
+    };
+
+    window.shareBill = () => {
+        if (state.currentBill.items.length === 0) {
+            showNotification('Cannot share an empty bill.', 'error');
+            return;
+        }
+
+        const billText = generateShareableBillText(state.currentBill);
+        const customerPhone = state.currentBill.customer.phone;
+        
+        // If customer has phone number, create WhatsApp link
+        if (customerPhone) {
+            const phoneNumber = customerPhone.replace(/[^0-9]/g, ''); // Remove non-numeric characters
+            const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(billText)}`;
+            
+            // Try to open WhatsApp
+            window.open(whatsappUrl, '_blank');
+            showNotification('Opening WhatsApp to share bill...', 'info');
+            
+            // Also copy to clipboard as fallback
+            navigator.clipboard.writeText(billText).then(() => {
+                setTimeout(() => {
+                    showNotification('Bill text also copied to clipboard!', 'success');
+                }, 1000);
+            }).catch(() => {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = billText;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+            });
+        } else {
+            // No phone number, just copy to clipboard
+            navigator.clipboard.writeText(billText).then(() => {
+                showNotification('Bill text copied to clipboard! You can paste it in WhatsApp/SMS.', 'success');
+            }).catch(() => {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = billText;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showNotification('Bill text copied to clipboard!', 'success');
+            });
+        }
+    };
+
+    window.shareSavedBill = (index) => {
+        const bill = state.bills[index];
+        if (!bill) {
+            showNotification('Bill not found.', 'error');
+            return;
+        }
+
+        const billNumber = state.bills.length - index;
+        const billText = generateShareableBillText(bill, billNumber);
+        const customerPhone = bill.customer?.phone;
+        
+        // If customer has phone number, create WhatsApp link
+        if (customerPhone) {
+            const phoneNumber = customerPhone.replace(/[^0-9]/g, ''); // Remove non-numeric characters
+            const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(billText)}`;
+            
+            // Try to open WhatsApp
+            window.open(whatsappUrl, '_blank');
+            showNotification('Opening WhatsApp to share bill...', 'info');
+            
+            // Also copy to clipboard as fallback
+            navigator.clipboard.writeText(billText).then(() => {
+                setTimeout(() => {
+                    showNotification('Bill text also copied to clipboard!', 'success');
+                }, 1000);
+            }).catch(() => {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = billText;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+            });
+        } else {
+            // No phone number, just copy to clipboard
+            navigator.clipboard.writeText(billText).then(() => {
+                showNotification('Bill text copied to clipboard! You can paste it in WhatsApp/SMS.', 'success');
+            }).catch(() => {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = billText;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showNotification('Bill text copied to clipboard!', 'success');
+            });
+        }
+    };
+
     window.saveBill = () => {
         if (state.currentBill.items.length === 0) {
             showNotification('Cannot save an empty bill.', 'error');
@@ -609,7 +814,56 @@ document.addEventListener('DOMContentLoaded', () => {
         const newBill = JSON.parse(JSON.stringify(state.currentBill));
         newBill.date = new Date().toISOString();
         newBill.discountAmount = newBill.discountAmount || 0;
+        newBill.billId = `BILL-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         state.bills.push(newBill);
+
+        // If payment method is credit, automatically add to customer's credit
+        if (state.currentBill.paymentMethod === 'credit' && state.currentBill.customer.phone) {
+            let customer = state.customers.find(c => c.phone === state.currentBill.customer.phone);
+            
+            // If customer doesn't exist, create them
+            if (!customer && state.currentBill.customer.name) {
+                customer = {
+                    name: state.currentBill.customer.name,
+                    phone: state.currentBill.customer.phone,
+                    credit: 0,
+                    loyaltyPoints: 0,
+                    creditBills: [],
+                    lastReminderDate: null
+                };
+                state.customers.push(customer);
+                showNotification(`New customer ${customer.name} created and added to credit.`, 'info');
+            }
+            
+            if (customer) {
+                const creditAmount = state.currentBill.total - (state.currentBill.discountAmount || 0);
+                customer.credit += creditAmount;
+                
+                // Add bill reference to credit
+                if (!customer.creditBills) customer.creditBills = [];
+                const billIndex = state.bills.length - 1; // Index of the bill we just pushed
+                const billReference = {
+                    billId: newBill.billId,
+                    billNumber: state.bills.length - billIndex, // Correct bill number calculation
+                    date: newBill.date,
+                    amount: creditAmount,
+                    items: newBill.items.map(item => `${item.name} (${item.quantity} ${item.unit})`).join(', ')
+                };
+                customer.creditBills.push(billReference);
+                
+                logCreditTransaction('add', customer, creditAmount, billReference);
+                showNotification(`Bill #${billReference.billNumber} (${formatCurrency(creditAmount)}) automatically added to credit for ${customer.name}.`, 'success');
+                
+                // Refresh customer list and credit status if on customers tab
+                renderCustomerList();
+                updateCreditStatusCard();
+            } else {
+                showNotification('Customer phone number required to add bill to credit.', 'error');
+            }
+        }
+
+        // Mark current bill as saved (stock should not be restored if cleared now)
+        state.currentBill.isSaved = true;
 
         showNotification('Bill saved successfully!', 'success');
 
@@ -633,6 +887,211 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.closeSavedBillsModal = () => {
         a.savedBillsModal.style.display = 'none';
+    };
+
+    window.viewCreditBill = (billId, customerIndex) => {
+        // Find the bill by billId
+        const billIndex = state.bills.findIndex(bill => bill.billId === billId);
+        
+        if (billIndex === -1) {
+            showNotification('Bill not found. It may have been deleted.', 'error');
+            return;
+        }
+
+        const bill = state.bills[billIndex];
+        const billNumber = state.bills.length - billIndex;
+        const customer = state.customers[customerIndex];
+        
+        // Generate bill content for display
+        const customerInfo = bill.customer?.name || bill.customer?.phone ? `
+            <p style="text-align: left; margin-top: 10px;">
+                <strong>Customer:</strong> ${bill.customer.name || 'N/A'}<br>
+                <strong>Contact:</strong> ${bill.customer.phone || 'N/A'}
+            </p>` : '';
+        const gstLine = state.settings.gstNumber ? `<p>GSTIN: ${state.settings.gstNumber}</p>` : '';
+
+        let tableRows = '';
+        bill.items.forEach((item, index) => {
+            tableRows += `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>${item.name}</td>
+                    <td>${item.quantity} ${item.unit}</td>
+                    <td>${formatCurrency(item.price)}</td>
+                    <td style="text-align: right;">${formatCurrency(item.totalPrice)}</td>
+                </tr>
+            `;
+        });
+
+        const paymentBreakdownHtml = bill.paymentDetails?.breakdown?.map(entry => `<span>${entry.label}: ${formatCurrency(entry.amount)}</span>`).join('') || '';
+        const paymentInfoSection = bill.paymentDetails ? `
+            <div class="bill-payment-info">
+                <p><strong>Payment Method:</strong> ${bill.paymentDetails.label || 'Not specified'}</p>
+                ${paymentBreakdownHtml}
+            </div>
+        ` : '';
+
+        const billDate = bill.date ? new Date(bill.date).toLocaleDateString('en-IN') : 'Unknown';
+        const billTime = bill.date ? new Date(bill.date).toLocaleTimeString('en-IN') : 'Unknown';
+
+        const billContent = `
+            <div class="shop-header">
+                <div class="bill-proprietor">Proprietor: Venu Gopal</div>
+                <h1>${state.settings.shopName}</h1>
+                <p>${state.settings.shopAddress}</p>
+                <p>Contact: ${state.settings.shopContact}</p>
+                ${gstLine}
+                <p>Date: ${billDate}</p>
+                <p>Time: ${billTime}</p>
+            </div>
+            <table class="bill-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Item</th>
+                        <th>Qty</th>
+                        <th>Price</th>
+                        <th style="text-align: right;">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${tableRows}
+                </tbody>
+            </table>
+            <div style="text-align: right; margin-top: 20px;">
+                <p><strong>Subtotal:</strong> ${formatCurrency(bill.total)}</p>
+                ${bill.discountAmount > 0 ? `<p><strong>Discount:</strong> -${formatCurrency(bill.discountAmount)}</p>` : ''}
+                <h2 style="margin-top: 10px;">GRAND TOTAL: ${formatCurrency(bill.total - (bill.discountAmount || 0))}</h2>
+            </div>
+            ${paymentInfoSection}
+            ${customerInfo}
+            <div class="bill-footer">
+                <p>Thank you for your visit!</p>
+                <p>Powered by Kirana Shop Pro</p>
+            </div>
+            <div style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 8px; border-left: 4px solid #2196f3;">
+                <p style="margin: 0;"><strong>📌 Credit Reference:</strong></p>
+                <p style="margin: 5px 0 0 0;">This bill is linked to credit for <strong>${customer.name}</strong></p>
+                <p style="margin: 5px 0 0 0;">Credit Amount: <strong>${formatCurrency(customer.credit)}</strong></p>
+            </div>
+            <div style="text-align: center; margin-top: 20px;">
+                <button class="btn btn-primary" onclick="shareSavedBill(${billIndex})" style="margin-right: 10px;">📱 Share This Bill</button>
+                <button class="btn btn-secondary" onclick="printCreditBill(${billIndex})">🖨️ Print</button>
+            </div>
+        `;
+
+        a.creditBillContent.innerHTML = billContent;
+        a.creditBillModal.style.display = 'flex';
+    };
+
+    window.closeCreditBillModal = () => {
+        a.creditBillModal.style.display = 'none';
+    };
+
+    // Close credit bill modal when clicking outside
+    if (a.creditBillModal) {
+        a.creditBillModal.addEventListener('click', (e) => {
+            if (e.target === a.creditBillModal) {
+                closeCreditBillModal();
+            }
+        });
+    }
+
+    window.printCreditBill = (billIndex) => {
+        const bill = state.bills[billIndex];
+        if (!bill) return;
+
+        // Create a temporary print window
+        const printWindow = window.open('', '_blank');
+        const billDate = bill.date ? new Date(bill.date).toLocaleDateString('en-IN') : 'Unknown';
+        const billTime = bill.date ? new Date(bill.date).toLocaleTimeString('en-IN') : 'Unknown';
+        const customerInfo = bill.customer?.name || bill.customer?.phone ? `
+            <p style="text-align: left; margin-top: 10px;">
+                <strong>Customer:</strong> ${bill.customer.name || 'N/A'}<br>
+                <strong>Contact:</strong> ${bill.customer.phone || 'N/A'}
+            </p>` : '';
+        const gstLine = state.settings.gstNumber ? `<p>GSTIN: ${state.settings.gstNumber}</p>` : '';
+
+        let tableRows = '';
+        bill.items.forEach((item, index) => {
+            tableRows += `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>${item.name}</td>
+                    <td>${item.quantity} ${item.unit}</td>
+                    <td>${formatCurrency(item.price)}</td>
+                    <td style="text-align: right;">${formatCurrency(item.totalPrice)}</td>
+                </tr>
+            `;
+        });
+
+        const paymentBreakdownHtml = bill.paymentDetails?.breakdown?.map(entry => `<span>${entry.label}: ${formatCurrency(entry.amount)}</span>`).join('') || '';
+        const paymentInfoSection = bill.paymentDetails ? `
+            <div class="bill-payment-info">
+                <p><strong>Payment Method:</strong> ${bill.paymentDetails.label || 'Not specified'}</p>
+                ${paymentBreakdownHtml}
+            </div>
+        ` : '';
+
+        const printContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Bill #${state.bills.length - billIndex}</title>
+                <style>
+                    body { font-family: Arial, sans-serif; padding: 20px; }
+                    .shop-header { text-align: center; margin-bottom: 20px; }
+                    .bill-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+                    .bill-table th, .bill-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                    .bill-table th { background-color: #f2f2f2; }
+                    .bill-footer { text-align: center; margin-top: 20px; }
+                </style>
+            </head>
+            <body>
+                <div class="shop-header">
+                    <div>Proprietor: Venu Gopal</div>
+                    <h1>${state.settings.shopName}</h1>
+                    <p>${state.settings.shopAddress}</p>
+                    <p>Contact: ${state.settings.shopContact}</p>
+                    ${gstLine}
+                    <p>Date: ${billDate}</p>
+                    <p>Time: ${billTime}</p>
+                </div>
+                <table class="bill-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Item</th>
+                            <th>Qty</th>
+                            <th>Price</th>
+                            <th style="text-align: right;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableRows}
+                    </tbody>
+                </table>
+                <div style="text-align: right; margin-top: 20px;">
+                    <p><strong>Subtotal:</strong> ${formatCurrency(bill.total)}</p>
+                    ${bill.discountAmount > 0 ? `<p><strong>Discount:</strong> -${formatCurrency(bill.discountAmount)}</p>` : ''}
+                    <h2 style="margin-top: 10px;">GRAND TOTAL: ${formatCurrency(bill.total - (bill.discountAmount || 0))}</h2>
+                </div>
+                ${paymentInfoSection}
+                ${customerInfo}
+                <div class="bill-footer">
+                    <p>Thank you for your visit!</p>
+                    <p>Powered by Kirana Shop Pro</p>
+                </div>
+            </body>
+            </html>
+        `;
+
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+            printWindow.print();
+        }, 250);
     };
 
     const matchesSavedBillQuery = (bill, index, query) => {
@@ -689,6 +1148,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </p>
                     </div>
                     <div>
+                        <button class="btn btn-success" onclick="shareSavedBill(${index})" style="margin-bottom: 5px;">📱 Share</button>
                         <button class="btn btn-secondary" onclick="resaveBill(${index})">📝 Re-bill</button>
                         <button class="btn btn-danger" onclick="deleteBill(${index})">🗑️ Delete</button>
                     </div>
@@ -885,7 +1345,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        state.customers.push({ name, phone, birthday, credit: 0, loyaltyPoints: 0 });
+        state.customers.push({ name, phone, birthday, credit: 0, loyaltyPoints: 0, creditBills: [], lastReminderDate: null });
         saveState();
         renderCustomerList();
         showNotification(`${name} added as a new customer!`, 'success');
@@ -914,23 +1374,53 @@ document.addEventListener('DOMContentLoaded', () => {
             customerElement.style.borderBottom = '1px solid #ddd';
 
             const creditDue = customer.credit > 0;
+            const creditBills = customer.creditBills || [];
+            
+            // Generate credit bills HTML
+            let creditBillsHtml = '';
+            if (creditBills.length > 0) {
+                creditBillsHtml = '<div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #e0e0e0;">';
+                creditBillsHtml += '<p style="font-size: 12px; color: #666; margin-bottom: 5px;"><strong>Reference Bills:</strong></p>';
+                creditBills.forEach((billRef, billIdx) => {
+                    const billDate = billRef.date ? new Date(billRef.date).toLocaleDateString() : 'Unknown';
+                    const safeBillId = billRef.billId.replace(/'/g, "\\'"); // Escape single quotes
+                    creditBillsHtml += `
+                        <div style="margin: 5px 0; padding: 8px; background: #f5f5f5; border-radius: 5px; cursor: pointer; border: 1px solid #ddd;"
+                             onclick="viewCreditBill('${safeBillId}', ${index})"
+                             onmouseover="this.style.background='#e8f5e9'" 
+                             onmouseout="this.style.background='#f5f5f5'"
+                             title="Click to view bill details">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <span style="font-weight: bold; color: #1976d2;">📄 Bill #${billRef.billNumber}</span>
+                                    <span style="font-size: 11px; color: #666; margin-left: 8px;">${formatCurrency(billRef.amount)}</span>
+                                    <span style="font-size: 11px; color: #888; margin-left: 8px;">(${billDate})</span>
+                                </div>
+                                <span style="font-size: 11px; color: #4caf50; font-weight: bold;">Click to view →</span>
+                            </div>
+                        </div>
+                    `;
+                });
+                creditBillsHtml += '</div>';
+            }
 
             customerElement.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div style="flex: 1;">
                         <h4>${customer.name}</h4>
                         <p>Phone: ${customer.phone}</p>
                         <p>Loyalty Points: ${customer.loyaltyPoints}</p>
                         ${customer.birthday ? `<p>Birthday: ${formatDate(customer.birthday)}</p>` : ''}
                     </div>
-                    <div style="text-align: right;">
-                        <h3 style="color: ${creditDue ? '#d32f2f' : '#2e7d32'};">Credit: ${formatCurrency(customer.credit)}</h3>
+                    <div style="text-align: right; min-width: 150px;">
+                        <h3 style="color: ${creditDue ? '#d32f2f' : '#2e7d32'}; margin-bottom: 5px;">Credit: ${formatCurrency(customer.credit)}</h3>
                         <small style="color: ${creditDue ? '#d32f2f' : '#2e7d32'};">
                             ${creditDue ? 'Pending due' : 'No dues'}
                         </small>
+                        ${creditBillsHtml}
                         <button
                             class="btn btn-danger"
-                            style="padding: 4px 8px; font-size: 12px; margin-top: 5px;"
+                            style="padding: 4px 8px; font-size: 12px; margin-top: 10px;"
                             ${creditDue ? 'disabled title="Clear outstanding credit before deleting"' : ''}
                             onclick="deleteCustomer(${index})"
                         >
@@ -966,6 +1456,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const customer = state.customers[selectedIndex];
         const due = customer.credit;
+        const creditBills = customer.creditBills || [];
+        
+        let billsHtml = '';
+        if (creditBills.length > 0) {
+            billsHtml = '<div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;"><strong>Credit Bills:</strong><ul style="margin: 10px 0; padding-left: 20px;">';
+            creditBills.forEach(bill => {
+                const billDate = bill.date ? new Date(bill.date).toLocaleDateString() : 'Unknown';
+                billsHtml += `<li style="margin: 5px 0;">Bill #${bill.billNumber} - ${formatCurrency(bill.amount)} (${billDate})</li>`;
+            });
+            billsHtml += '</ul></div>';
+        }
+        
         const statusHtml = `
             <div>
                 <h4>${customer.name}</h4>
@@ -975,12 +1477,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span>${formatCurrency(due)}</span>
                 <small>${due > 0 ? 'Outstanding' : 'Clear'}</small>
             </div>
+            ${billsHtml}
         `;
         a.creditStatusCard.innerHTML = statusHtml;
         a.creditStatusCard.classList.toggle('has-overdue', due > 0);
     };
 
-    const logCreditTransaction = (type, customer, amount) => {
+    const logCreditTransaction = (type, customer, amount, billReference = null) => {
         const safeAmount = Number(amount) || 0;
         state.creditTransactions.unshift({
             id: `${customer.phone}-${Date.now()}`,
@@ -989,6 +1492,7 @@ document.addEventListener('DOMContentLoaded', () => {
             customerPhone: customer.phone,
             amount: safeAmount,
             balance: customer.credit,
+            billReference: billReference,
             timestamp: new Date().toISOString()
         });
         state.creditTransactions = state.creditTransactions.slice(0, 25);
@@ -1010,11 +1514,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 hour: '2-digit',
                 minute: '2-digit'
             });
+            const billRef = entry.billReference ? `<p style="font-size: 11px; color: #666; margin-top: 5px;">📄 Bill #${entry.billReference.billNumber}</p>` : '';
             entryElement.innerHTML = `
                 <div>
                     <strong>${entry.customerName}</strong>
                     <p style="font-size: 12px; color: #666;">${date}</p>
                     <p style="font-size: 12px; color: #888;">${entry.customerPhone}</p>
+                    ${billRef}
                 </div>
                 <div class="credit-history-amount">
                     <span>${entry.type === 'add' ? '+' : '-'}${formatCurrency(entry.amount)}</span>
@@ -1038,6 +1544,209 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    const generateReminderMessage = (customer, amount, language = 'en') => {
+        const customerName = customer.name || 'Customer';
+        const greetings = {
+            'en': `Namaste ${customerName} 🙏`,
+            'hi': `नमस्ते ${customerName} 🙏`,
+            'te': `నమస్కారం ${customerName} 🙏`
+        };
+        const messages = {
+            'en': [
+                `This is a gentle reminder that your kirana balance of ${formatCurrency(amount)} is pending.`,
+                `Please clear it when convenient. Thank you 😊`
+            ],
+            'hi': [
+                `यह एक सौम्य अनुस्मारक है कि आपका किराना बैलेंस ${formatCurrency(amount)} लंबित है।`,
+                `कृपया सुविधानुसार इसे क्लियर करें। धन्यवाद 😊`
+            ],
+            'te': [
+                `మీ కిరాణా బ్యాలెన్స్ ${formatCurrency(amount)} పెండింగ్‌లో ఉందని ఇది ఒక సౌమ్యమైన రిమైండర్.`,
+                `దయచేసి సౌకర్యంగా ఉన్నప్పుడు క్లియర్ చేయండి. ధన్యవాదాలు 😊`
+            ]
+        };
+        
+        const greeting = greetings[language] || greetings['en'];
+        const message = messages[language] || messages['en'];
+        
+        return `${greeting}\n${message[0]}\n${message[1]}`;
+    };
+
+    window.generateReminders = () => {
+        if (!a.reminderList) return;
+        
+        const currentDate = new Date();
+        const reminders = [];
+        
+        state.customers.forEach((customer, index) => {
+            if (customer.credit <= 0) return; // Skip customers with no pending credit
+            
+            const lastReminderDate = customer.lastReminderDate ? new Date(customer.lastReminderDate) : null;
+            const daysSinceReminder = lastReminderDate 
+                ? Math.floor((currentDate - lastReminderDate) / (1000 * 60 * 60 * 24))
+                : Infinity; // Never reminded, so always eligible
+            
+            // Send reminder if 21 days have passed or never reminded
+            if (daysSinceReminder >= 21) {
+                // Get selected language from dropdown or use saved preference
+                const language = a.reminderLanguage?.value || state.settings.reminderLanguage || 'en';
+                const message = generateReminderMessage(customer, customer.credit, language);
+                
+                reminders.push({
+                    customer: customer,
+                    customerIndex: index,
+                    amount: customer.credit,
+                    message: message,
+                    language: language,
+                    daysSinceReminder: daysSinceReminder === Infinity ? 'Never' : daysSinceReminder,
+                    lastReminderDate: lastReminderDate
+                });
+            }
+        });
+        
+        if (reminders.length === 0) {
+            a.reminderList.innerHTML = '<p style="text-align: center; color: #666;">No reminders needed at this time. All customers with pending credit have been reminded recently.</p>';
+            return;
+        }
+        
+        a.reminderList.innerHTML = '';
+        reminders.forEach(reminder => {
+            const reminderElement = document.createElement('div');
+            reminderElement.className = 'credit-history-entry credit-added';
+            reminderElement.style.marginBottom = '15px';
+            reminderElement.style.padding = '15px';
+            reminderElement.style.border = '1px solid #ddd';
+            reminderElement.style.borderRadius = '8px';
+            reminderElement.style.backgroundColor = '#fff9e6';
+            
+            const billInfo = reminder.customer.creditBills && reminder.customer.creditBills.length > 0
+                ? `<p style="font-size: 12px; color: #666; margin-top: 5px;"><strong>Bills:</strong> ${reminder.customer.creditBills.map(b => `Bill #${b.billNumber}`).join(', ')}</p>`
+                : '';
+            
+            const languageNames = {
+                'en': 'English',
+                'hi': 'Hindi (हिंदी)',
+                'te': 'Telugu (తెలుగు)'
+            };
+            const currentLanguage = reminder.language || a.reminderLanguage?.value || state.settings.reminderLanguage || 'en';
+            const languageLabel = languageNames[currentLanguage] || 'English';
+            
+            reminderElement.innerHTML = `
+                <div style="margin-bottom: 10px;">
+                    <strong>${reminder.customer.name}</strong>
+                    <p style="font-size: 12px; color: #666;">Phone: ${reminder.customer.phone}</p>
+                    <p style="font-size: 12px; color: #666;">Pending: ${formatCurrency(reminder.amount)}</p>
+                    ${billInfo}
+                    <p style="font-size: 11px; color: #888;">Days since last reminder: ${reminder.daysSinceReminder}</p>
+                    <p style="font-size: 11px; color: #1976d2; margin-top: 5px;"><strong>🌐 Language:</strong> ${languageLabel}</p>
+                </div>
+                <div style="background: #f5f5f5; padding: 10px; border-radius: 5px; margin: 10px 0;">
+                    <strong style="font-size: 12px;">Reminder Message (${languageLabel}):</strong>
+                    <p style="white-space: pre-wrap; font-size: 13px; margin-top: 5px;">${reminder.message}</p>
+                </div>
+                    <div style="display: flex; gap: 10px; margin-top: 10px;">
+                        <button class="btn btn-success btn-small" onclick="sendReminder(${reminder.customerIndex})" style="flex: 1;">📱 Send via WhatsApp</button>
+                        <button class="btn btn-secondary btn-small" onclick="copyReminderMessage(${reminder.customerIndex})" style="flex: 1;">📋 Copy Message</button>
+                    </div>
+            `;
+            a.reminderList.appendChild(reminderElement);
+        });
+    };
+
+    window.sendReminder = (customerIndex) => {
+        const customer = state.customers[customerIndex];
+        if (!customer) return;
+        
+        if (!customer.phone) {
+            showNotification(`No phone number available for ${customer.name}.`, 'error');
+            return;
+        }
+        
+        // Get selected language from dropdown or use saved preference
+        const language = a.reminderLanguage?.value || state.settings.reminderLanguage || 'en';
+        const message = generateReminderMessage(customer, customer.credit, language);
+        const phoneNumber = customer.phone.replace(/[^0-9]/g, ''); // Remove non-numeric characters
+        
+        // Open WhatsApp with the reminder message
+        const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+        window.open(whatsappUrl, '_blank');
+        
+        // Update last reminder date
+        customer.lastReminderDate = new Date().toISOString();
+        saveState();
+        showNotification(`WhatsApp reminder sent to ${customer.name}!`, 'success');
+        generateReminders(); // Refresh the list
+    };
+
+    // Auto-send reminders function - checks and sends automatically
+    window.autoSendReminders = () => {
+        const currentDate = new Date();
+        let remindersSent = 0;
+        
+        state.customers.forEach((customer) => {
+            if (customer.credit <= 0 || !customer.phone) return; // Skip customers with no pending credit or no phone
+            
+            const lastReminderDate = customer.lastReminderDate ? new Date(customer.lastReminderDate) : null;
+            const daysSinceReminder = lastReminderDate 
+                ? Math.floor((currentDate - lastReminderDate) / (1000 * 60 * 60 * 24))
+                : Infinity; // Never reminded, so always eligible
+            
+            // Auto-send reminder if 21 days have passed
+            if (daysSinceReminder >= 21) {
+                // Get selected language from dropdown or use saved preference
+                const language = a.reminderLanguage?.value || state.settings.reminderLanguage || 'en';
+                const message = generateReminderMessage(customer, customer.credit, language);
+                const phoneNumber = customer.phone.replace(/[^0-9]/g, '');
+                
+                // Open WhatsApp with the reminder message
+                const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+                
+                // Use setTimeout to stagger the WhatsApp opens (avoid popup blocker issues)
+                setTimeout(() => {
+                    window.open(whatsappUrl, '_blank');
+                }, remindersSent * 500); // Stagger by 500ms
+                
+                // Update last reminder date
+                customer.lastReminderDate = currentDate.toISOString();
+                remindersSent++;
+            }
+        });
+        
+        if (remindersSent > 0) {
+            saveState();
+            showNotification(`Auto-sent ${remindersSent} reminder(s) via WhatsApp!`, 'success');
+            // Refresh reminders list after a short delay
+            setTimeout(() => {
+                if (a.reminderList && a.reminderList.parentElement) {
+                    generateReminders();
+                }
+            }, 1000);
+        }
+    };
+
+    window.copyReminderMessage = (customerIndex) => {
+        const customer = state.customers[customerIndex];
+        if (!customer) return;
+        
+        // Get selected language from dropdown or use saved preference
+        const language = a.reminderLanguage?.value || state.settings.reminderLanguage || 'en';
+        const message = generateReminderMessage(customer, customer.credit, language);
+        
+        // Copy to clipboard
+        navigator.clipboard.writeText(message).then(() => {
+            showNotification('Reminder message copied to clipboard!', 'success');
+        }).catch(() => {
+            // Fallback for older browsers
+            const textArea = document.createElement('textarea');
+            textArea.value = message;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            showNotification('Reminder message copied to clipboard!', 'success');
+        });
+    };
+
     if (a.creditCustomer) {
         a.creditCustomer.addEventListener('change', updateCreditStatusCard);
     }
@@ -1059,26 +1768,88 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    window.onCreditCustomerChange = () => {
+        updateCreditStatusCard();
+        loadCreditBills();
+    };
+
+    const loadCreditBills = () => {
+        if (!a.creditBill) return;
+        a.creditBill.innerHTML = '<option value="">Select a bill (optional)...</option>';
+        
+        // Show all saved bills (completed bills) as options for reference
+        state.bills.forEach((bill, index) => {
+            const billDate = bill.date ? new Date(bill.date).toLocaleDateString() : 'Unknown date';
+            const customerName = bill.customer?.name || bill.customer?.phone || 'Walk-in Customer';
+            const billTotal = bill.total - (bill.discountAmount || 0);
+            const option = document.createElement('option');
+            option.value = index;
+            option.textContent = `Bill #${state.bills.length - index} - ${customerName} - ${formatCurrency(billTotal)} - ${billDate}`;
+            a.creditBill.appendChild(option);
+        });
+    };
+
     window.addCredit = () => {
         const customerIndex = a.creditCustomer.value;
-        const amount = parseFloat(a.creditAmount.value);
+        
+        if (customerIndex === "") {
+            showNotification('Please select a customer.', 'error');
+            return;
+        }
 
-        if (customerIndex === "" || isNaN(amount) || amount <= 0) {
-            showNotification('Please select a customer and enter a valid amount.', 'error');
+        // Amount is mandatory
+        const amount = parseFloat(a.creditAmount.value);
+        if (isNaN(amount) || amount <= 0) {
+            showNotification('Please enter a valid amount.', 'error');
             return;
         }
 
         const customer = state.customers[customerIndex];
+        let billReference = null;
+
+        // Bill selection is optional - for reference only
+        const billIndex = a.creditBill.value;
+        if (billIndex !== "") {
+            const bill = state.bills[billIndex];
+            // Generate billId if it doesn't exist (for legacy bills)
+            if (!bill.billId) {
+                bill.billId = `BILL-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            }
+            billReference = {
+                billId: bill.billId,
+                billNumber: state.bills.length - billIndex,
+                date: bill.date,
+                amount: amount, // Use the entered amount, not bill total
+                items: bill.items.map(item => `${item.name} (${item.quantity} ${item.unit})`).join(', '),
+                isReference: true // Mark as reference bill
+            };
+        }
+
         customer.credit += amount;
-        logCreditTransaction('add', customer, amount);
+        if (billReference) {
+            if (!customer.creditBills) customer.creditBills = [];
+            customer.creditBills.push(billReference);
+        }
+        
+        logCreditTransaction('add', customer, amount, billReference);
         saveState();
         renderCustomerList();
         renderAnalytics();
         renderCreditHistory();
         updateCreditStatusCard();
-        showNotification(`${formatCurrency(amount)} added to credit for ${state.customers[customerIndex].name}.`, 'success');
-        a.creditAmount.value = '';
+        
+        const message = billReference 
+            ? `${formatCurrency(amount)} added to credit for ${customer.name} (Reference: Bill #${billReference.billNumber}).`
+            : `${formatCurrency(amount)} added to credit for ${customer.name}.`;
+        showNotification(message, 'success');
+        
+        if (a.creditAmount) a.creditAmount.value = '';
+        if (a.creditBill) a.creditBill.value = '';
+        loadCreditBills(); // Reload bills
     };
+
+    // Store pending action for password verification
+    let pendingAction = null;
 
     window.collectPayment = () => {
         const customerIndex = a.creditCustomer.value;
@@ -1089,14 +1860,66 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // Check if password is set, if yes, require password verification
+        if (state.settings.securityPassword && state.settings.securityPassword.trim() !== '') {
+            // Convert customerIndex to number to ensure consistency
+            const customerIndexNum = typeof customerIndex === 'string' ? parseInt(customerIndex, 10) : customerIndex;
+            pendingAction = { 
+                type: 'collectPayment', 
+                customerIndex: customerIndexNum, 
+                amount: amount 
+            };
+            showPasswordModal('Collect Payment');
+            return;
+        }
+
+        // If no password set, proceed directly
+        executeCollectPayment(customerIndex, amount);
+    };
+
+    const executeCollectPayment = (customerIndex, amount) => {
+        // Validate inputs
+        if (customerIndex === undefined || customerIndex === null || customerIndex === '') {
+            showNotification('Invalid customer selected. Please try again.', 'error');
+            return;
+        }
+        
+        if (isNaN(amount) || amount <= 0) {
+            showNotification('Invalid amount. Please enter a valid amount.', 'error');
+            return;
+        }
+        
         const customer = state.customers[customerIndex];
-        const priorCredit = customer.credit;
+        if (!customer) {
+            showNotification('Customer not found. Please try again.', 'error');
+            return;
+        }
+        
+        const priorCredit = customer.credit || 0;
         if (priorCredit <= 0) {
             showNotification(`${customer.name} has no outstanding credit.`, 'info');
             return;
         }
+        
         const appliedAmount = Math.min(amount, priorCredit);
-        customer.credit = Math.max(0, priorCredit - amount);
+        const remainingCredit = Math.max(0, priorCredit - amount);
+        
+        // Update credit bills - remove bills that are fully paid
+        if (customer.creditBills && customer.creditBills.length > 0) {
+            let remainingPayment = appliedAmount;
+            customer.creditBills = customer.creditBills.filter(bill => {
+                if (remainingPayment >= bill.amount) {
+                    remainingPayment -= bill.amount;
+                    return false; // Bill is fully paid, remove it
+                } else {
+                    bill.amount -= remainingPayment;
+                    remainingPayment = 0;
+                    return true; // Bill partially paid, keep it
+                }
+            });
+        }
+        
+        customer.credit = remainingCredit;
         logCreditTransaction('payment', customer, appliedAmount);
         saveState();
         renderCustomerList();
@@ -1104,7 +1927,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderCreditHistory();
         updateCreditStatusCard();
         showNotification(`Payment of ${formatCurrency(appliedAmount)} collected from ${customer.name}.`, 'success');
-        a.creditAmount.value = '';
+        if (a.creditAmount) a.creditAmount.value = '';
     };
 
     // --- ANALYTICS FUNCTIONS ---
@@ -1396,6 +2219,214 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // --- CALENDAR FUNCTIONS ---
+    let currentCalendarDate = new Date();
+
+    // Festival data for Indian festivals (2024-2025)
+    const festivalsData = {
+        '2024': {
+            '1': [{ day: 14, name: 'Makar Sankranti', type: 'major' }, { day: 26, name: 'Republic Day', type: 'national' }],
+            '2': [{ day: 14, name: 'Valentine\'s Day', type: 'minor' }, { day: 19, name: 'Shivratri', type: 'major' }],
+            '3': [{ day: 8, name: 'Holi', type: 'major' }, { day: 25, name: 'Holi', type: 'major' }, { day: 29, name: 'Good Friday', type: 'minor' }, { day: 31, name: 'Easter', type: 'minor' }],
+            '4': [{ day: 9, name: 'Ugadi', type: 'major' }, { day: 11, name: 'Ram Navami', type: 'major' }, { day: 14, name: 'Ambedkar Jayanti', type: 'national' }, { day: 17, name: 'Ramzan/Eid-ul-Fitr', type: 'major' }],
+            '5': [{ day: 1, name: 'Labour Day', type: 'national' }, { day: 23, name: 'Buddha Purnima', type: 'major' }],
+            '6': [{ day: 17, name: 'Eid-ul-Adha', type: 'major' }],
+            '7': [{ day: 17, name: 'Muharram', type: 'major' }],
+            '8': [{ day: 15, name: 'Independence Day', type: 'national' }, { day: 19, name: 'Raksha Bandhan', type: 'major' }, { day: 26, name: 'Janmashtami', type: 'major' }],
+            '9': [{ day: 7, name: 'Ganesh Chaturthi', type: 'major' }, { day: 17, name: 'Onam', type: 'major' }],
+            '10': [{ day: 2, name: 'Gandhi Jayanti', type: 'national' }, { day: 3, name: 'Dussehra', type: 'major' }, { day: 12, name: 'Karva Chauth', type: 'major' }, { day: 17, name: 'Diwali', type: 'major' }, { day: 18, name: 'Govardhan Puja', type: 'major' }, { day: 19, name: 'Bhai Dooj', type: 'major' }],
+            '11': [{ day: 1, name: 'Chhath Puja', type: 'major' }, { day: 15, name: 'Children\'s Day', type: 'minor' }],
+            '12': [{ day: 25, name: 'Christmas', type: 'major' }]
+        },
+        '2025': {
+            '1': [{ day: 14, name: 'Makar Sankranti', type: 'major' }, { day: 26, name: 'Republic Day', type: 'national' }],
+            '2': [{ day: 14, name: 'Valentine\'s Day', type: 'minor' }, { day: 8, name: 'Shivratri', type: 'major' }],
+            '3': [{ day: 14, name: 'Holi', type: 'major' }, { day: 29, name: 'Ram Navami', type: 'major' }],
+            '4': [{ day: 13, name: 'Eid-ul-Fitr', type: 'major' }, { day: 14, name: 'Ambedkar Jayanti', type: 'national' }, { day: 21, name: 'Ram Navami', type: 'major' }],
+            '5': [{ day: 1, name: 'Labour Day', type: 'national' }, { day: 12, name: 'Buddha Purnima', type: 'major' }],
+            '6': [{ day: 6, name: 'Eid-ul-Adha', type: 'major' }],
+            '7': [{ day: 7, name: 'Muharram', type: 'major' }],
+            '8': [{ day: 3, name: 'Raksha Bandhan', type: 'major' }, { day: 15, name: 'Independence Day', type: 'national' }, { day: 15, name: 'Janmashtami', type: 'major' }],
+            '9': [{ day: 26, name: 'Ganesh Chaturthi', type: 'major' }, { day: 6, name: 'Onam', type: 'major' }],
+            '10': [{ day: 2, name: 'Gandhi Jayanti', type: 'national' }, { day: 22, name: 'Dussehra', type: 'major' }, { day: 1, name: 'Karva Chauth', type: 'major' }, { day: 6, name: 'Diwali', type: 'major' }, { day: 7, name: 'Govardhan Puja', type: 'major' }, { day: 8, name: 'Bhai Dooj', type: 'major' }],
+            '11': [{ day: 20, name: 'Chhath Puja', type: 'major' }, { day: 15, name: 'Children\'s Day', type: 'minor' }],
+            '12': [{ day: 25, name: 'Christmas', type: 'major' }]
+        }
+    };
+
+    const getFestivalsForDate = (year, month, day) => {
+        const yearStr = year.toString();
+        const monthStr = month.toString();
+        const yearFestivals = festivalsData[yearStr];
+        if (!yearFestivals) return [];
+        const monthFestivals = yearFestivals[monthStr];
+        if (!monthFestivals) return [];
+        return monthFestivals.filter(f => f.day === day);
+    };
+
+    const renderCalendar = () => {
+        if (!a.calendarContainer) return;
+
+        const year = currentCalendarDate.getFullYear();
+        const month = currentCalendarDate.getMonth();
+        const today = new Date();
+        const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
+
+        // Update month/year display
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        a.calendarMonthYear.textContent = `${monthNames[month]} ${year}`;
+
+        // Get first day of month and number of days
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const daysInMonth = lastDay.getDate();
+        const startingDayOfWeek = firstDay.getDay();
+
+        // Calendar HTML
+        let calendarHtml = `
+            <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden;">
+                <thead>
+                    <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                        <th style="padding: 15px; text-align: center; font-weight: bold;">Sun</th>
+                        <th style="padding: 15px; text-align: center; font-weight: bold;">Mon</th>
+                        <th style="padding: 15px; text-align: center; font-weight: bold;">Tue</th>
+                        <th style="padding: 15px; text-align: center; font-weight: bold;">Wed</th>
+                        <th style="padding: 15px; text-align: center; font-weight: bold;">Thu</th>
+                        <th style="padding: 15px; text-align: center; font-weight: bold;">Fri</th>
+                        <th style="padding: 15px; text-align: center; font-weight: bold;">Sat</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        let currentDay = 1;
+        let isFirstWeek = true;
+
+        // Generate calendar rows
+        while (currentDay <= daysInMonth) {
+            calendarHtml += '<tr>';
+            for (let i = 0; i < 7; i++) {
+                if (isFirstWeek && i < startingDayOfWeek) {
+                    calendarHtml += '<td style="padding: 10px; text-align: center; height: 80px; border: 1px solid #e0e0e0;"></td>';
+                } else if (currentDay > daysInMonth) {
+                    calendarHtml += '<td style="padding: 10px; text-align: center; height: 80px; border: 1px solid #e0e0e0;"></td>';
+                } else {
+                    const festivals = getFestivalsForDate(year, month + 1, currentDay);
+                    const isToday = isCurrentMonth && currentDay === today.getDate();
+                    const hasFestival = festivals.length > 0;
+                    const majorFestival = festivals.find(f => f.type === 'major');
+                    const nationalFestival = festivals.find(f => f.type === 'national');
+
+                    let cellStyle = 'padding: 10px; text-align: center; height: 80px; border: 1px solid #e0e0e0; vertical-align: top;';
+                    let cellBg = '';
+                    
+                    if (isToday) {
+                        cellBg = 'background: linear-gradient(135deg, #e3f2fd, #bbdefb);';
+                    } else if (majorFestival) {
+                        cellBg = 'background: linear-gradient(135deg, #fff3e0, #ffe0b2);';
+                    } else if (nationalFestival) {
+                        cellBg = 'background: linear-gradient(135deg, #e8f5e9, #c8e6c9);';
+                    } else if (hasFestival) {
+                        cellBg = 'background: #f5f5f5;';
+                    }
+
+                    calendarHtml += `<td style="${cellStyle} ${cellBg}">`;
+                    calendarHtml += `<div style="font-weight: ${isToday ? 'bold' : 'normal'}; font-size: 16px; color: ${isToday ? '#1976d2' : '#333'}; margin-bottom: 5px;">${currentDay}</div>`;
+                    
+                    if (hasFestival) {
+                        festivals.forEach(festival => {
+                            const festivalColor = festival.type === 'major' ? '#f57c00' : festival.type === 'national' ? '#2e7d32' : '#666';
+                            const festivalEmoji = festival.type === 'major' ? '🎉' : festival.type === 'national' ? '🇮🇳' : '📅';
+                            calendarHtml += `<div style="font-size: 10px; color: ${festivalColor}; margin: 2px 0; font-weight: bold;" title="${festival.name}">${festivalEmoji} ${festival.name}</div>`;
+                        });
+                    }
+                    
+                    calendarHtml += '</td>';
+                    currentDay++;
+                }
+            }
+            calendarHtml += '</tr>';
+            isFirstWeek = false;
+        }
+
+        calendarHtml += '</tbody></table>';
+        a.calendarContainer.innerHTML = calendarHtml;
+
+        // Render upcoming festivals
+        renderUpcomingFestivals();
+    };
+
+    const renderUpcomingFestivals = () => {
+        if (!a.upcomingFestivals) return;
+
+        const today = new Date();
+        const next30Days = [];
+        const festivalsList = [];
+
+        // Get festivals for next 30 days
+        for (let i = 0; i < 30; i++) {
+            const date = new Date(today);
+            date.setDate(today.getDate() + i);
+            const year = date.getFullYear();
+            const month = date.getMonth() + 1;
+            const day = date.getDate();
+            
+            const festivals = getFestivalsForDate(year, month, day);
+            if (festivals.length > 0) {
+                festivals.forEach(festival => {
+                    festivalsList.push({
+                        date: new Date(year, month - 1, day),
+                        name: festival.name,
+                        type: festival.type,
+                        daysFromNow: i
+                    });
+                });
+            }
+        }
+
+        if (festivalsList.length === 0) {
+            a.upcomingFestivals.innerHTML = '<p style="text-align: center; color: #666;">No festivals in the next 30 days.</p>';
+            return;
+        }
+
+        let festivalsHtml = '<div style="display: grid; gap: 10px;">';
+        festivalsList.forEach(festival => {
+            const dateStr = festival.date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+            const typeColor = festival.type === 'major' ? '#f57c00' : festival.type === 'national' ? '#2e7d32' : '#666';
+            const typeBg = festival.type === 'major' ? '#fff3e0' : festival.type === 'national' ? '#e8f5e9' : '#f5f5f5';
+            const emoji = festival.type === 'major' ? '🎉' : festival.type === 'national' ? '🇮🇳' : '📅';
+            
+            festivalsHtml += `
+                <div style="padding: 12px; background: ${typeBg}; border-radius: 8px; border-left: 4px solid ${typeColor}; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong style="color: ${typeColor}; font-size: 14px;">${emoji} ${festival.name}</strong>
+                        <p style="margin: 5px 0 0 0; font-size: 12px; color: #666;">${dateStr}</p>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="font-size: 12px; color: #666;">${festival.daysFromNow === 0 ? 'Today' : festival.daysFromNow === 1 ? 'Tomorrow' : `In ${festival.daysFromNow} days`}</span>
+                    </div>
+                </div>
+            `;
+        });
+        festivalsHtml += '</div>';
+        a.upcomingFestivals.innerHTML = festivalsHtml;
+    };
+
+    window.previousMonth = () => {
+        currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
+        renderCalendar();
+    };
+
+    window.nextMonth = () => {
+        currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
+        renderCalendar();
+    };
+
+    window.goToToday = () => {
+        currentCalendarDate = new Date();
+        renderCalendar();
+    };
+
     // --- SETTINGS FUNCTIONS ---
     const renderSettings = () => {
         a.shopName.value = state.settings.shopName;
@@ -1405,6 +2436,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (a.gstNumber) {
             a.gstNumber.value = state.settings.gstNumber || '';
         }
+        // Clear password fields (never display stored password)
+        if (a.currentPassword) a.currentPassword.value = '';
+        if (a.newPassword) a.newPassword.value = '';
+        if (a.confirmPassword) a.confirmPassword.value = '';
+    };
+
+    window.onReminderLanguageChange = () => {
+        if (a.reminderLanguage) {
+            state.settings.reminderLanguage = a.reminderLanguage.value || 'en';
+            saveState();
+            // Regenerate reminders with new language if reminders are already displayed
+            if (a.reminderList && a.reminderList.children.length > 0) {
+                generateReminders();
+            }
+        }
     };
 
     window.saveSettings = () => {
@@ -1413,6 +2459,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.settings.shopContact = a.shopContact.value.trim();
         state.settings.upiId = a.settingUpiId.value.trim();
         state.settings.gstNumber = (a.gstNumber?.value || '').trim().toUpperCase();
+        // Reminder language is saved automatically when changed
 
         saveState();
         renderSettings(); // Re-render settings to show saved data
@@ -1423,6 +2470,17 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.resetData = () => {
+        // Check if password is set, if yes, require password verification
+        if (state.settings.securityPassword && state.settings.securityPassword.trim() !== '') {
+            if (confirm('ARE YOU ABSOLUTELY SURE? This will delete all your data permanently. This action cannot be undone.')) {
+                pendingAction = { type: 'resetData' };
+                showPasswordModal('Factory Reset');
+                return;
+            }
+            return;
+        }
+
+        // If no password set, proceed with old confirmation
         if (confirm('ARE YOU ABSOLUTELY SURE? This will delete all your data permanently. This action cannot be undone.')) {
             if (prompt('To confirm, please type "DELETE" in all caps.') === 'DELETE') {
                 localStorage.removeItem('kiranaProState');
@@ -1432,6 +2490,169 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     };
+
+    const executeResetData = () => {
+        // Final confirmation before reset
+        if (confirm('This will permanently delete ALL data. Are you absolutely sure?')) {
+            try {
+                localStorage.removeItem('kiranaProState');
+                showNotification('Data reset successfully. Reloading...', 'success');
+                setTimeout(() => {
+                    location.reload();
+                }, 500);
+            } catch (error) {
+                showNotification('Error resetting data. Please try again.', 'error');
+                console.error('Reset error:', error);
+            }
+        } else {
+            showNotification('Factory reset cancelled.', 'info');
+        }
+    };
+
+    // Password management functions
+    window.showPasswordModal = (actionName) => {
+        if (!a.passwordModal) return;
+        a.passwordModal.style.display = 'flex';
+        if (a.passwordInput) {
+            a.passwordInput.value = '';
+            a.passwordInput.focus();
+        }
+        // Update modal title if needed
+        const modalTitle = a.passwordModal.querySelector('h2');
+        if (modalTitle && actionName) {
+            modalTitle.textContent = `🔒 Security Password Required - ${actionName}`;
+        }
+    };
+
+    window.closePasswordModal = () => {
+        if (!a.passwordModal) return;
+        a.passwordModal.style.display = 'none';
+        if (a.passwordInput) {
+            a.passwordInput.value = '';
+        }
+        pendingAction = null;
+    };
+
+    window.verifyPassword = () => {
+        const enteredPassword = (a.passwordInput?.value || '').trim();
+        const storedPassword = (state.settings.securityPassword || '').trim();
+
+        if (!enteredPassword) {
+            showNotification('Please enter a password.', 'error');
+            return;
+        }
+
+        if (!storedPassword) {
+            showNotification('No password is set. Please set a password in Settings first.', 'error');
+            closePasswordModal();
+            return;
+        }
+
+        if (enteredPassword !== storedPassword) {
+            showNotification('Incorrect password. Please try again.', 'error');
+            if (a.passwordInput) {
+                a.passwordInput.value = '';
+                a.passwordInput.focus();
+            }
+            return;
+        }
+
+        // Password verified successfully
+        showNotification('Password verified successfully!', 'success');
+        
+        // Store action details before closing modal
+        const actionToExecute = pendingAction;
+        
+        // Close modal first
+        closePasswordModal();
+        
+        // Execute pending action after a short delay to ensure modal is closed
+        setTimeout(() => {
+            if (actionToExecute) {
+                if (actionToExecute.type === 'collectPayment') {
+                    // Convert customerIndex to number if it's a string
+                    const customerIndex = typeof actionToExecute.customerIndex === 'string' 
+                        ? parseInt(actionToExecute.customerIndex, 10) 
+                        : actionToExecute.customerIndex;
+                    const amount = parseFloat(actionToExecute.amount);
+                    
+                    // Validate before executing
+                    if (isNaN(customerIndex) || customerIndex < 0 || !state.customers[customerIndex]) {
+                        showNotification('Invalid customer selected. Please try again.', 'error');
+                        return;
+                    }
+                    if (isNaN(amount) || amount <= 0) {
+                        showNotification('Invalid amount. Please try again.', 'error');
+                        return;
+                    }
+                    
+                    executeCollectPayment(customerIndex, amount);
+                } else if (actionToExecute.type === 'resetData') {
+                    executeResetData();
+                }
+            }
+        }, 100);
+    };
+
+    window.changePassword = () => {
+        const currentPwd = a.currentPassword?.value || '';
+        const newPwd = a.newPassword?.value || '';
+        const confirmPwd = a.confirmPassword?.value || '';
+        const storedPassword = state.settings.securityPassword || '';
+
+        // If password is already set, require current password
+        if (storedPassword && storedPassword.trim() !== '') {
+            if (!currentPwd) {
+                showNotification('Please enter your current password.', 'error');
+                return;
+            }
+            if (currentPwd !== storedPassword) {
+                showNotification('Current password is incorrect.', 'error');
+                if (a.currentPassword) a.currentPassword.value = '';
+                if (a.currentPassword) a.currentPassword.focus();
+                return;
+            }
+        }
+
+        // Validate new password
+        if (!newPwd) {
+            showNotification('Please enter a new password.', 'error');
+            return;
+        }
+
+        if (newPwd.length < 4) {
+            showNotification('Password must be at least 4 characters long.', 'error');
+            return;
+        }
+
+        if (newPwd !== confirmPwd) {
+            showNotification('New password and confirm password do not match.', 'error');
+            if (a.newPassword) a.newPassword.value = '';
+            if (a.confirmPassword) a.confirmPassword.value = '';
+            if (a.newPassword) a.newPassword.focus();
+            return;
+        }
+
+        // Save new password
+        state.settings.securityPassword = newPwd;
+        saveState();
+        
+        // Clear password fields
+        if (a.currentPassword) a.currentPassword.value = '';
+        if (a.newPassword) a.newPassword.value = '';
+        if (a.confirmPassword) a.confirmPassword.value = '';
+
+        showNotification('Password changed successfully!', 'success');
+    };
+
+    // Close password modal when clicking outside
+    if (a.passwordModal) {
+        a.passwordModal.addEventListener('click', (e) => {
+            if (e.target === a.passwordModal) {
+                closePasswordModal();
+            }
+        });
+    }
 
     // --- INITIALIZATION ---
     const init = () => {
@@ -1452,6 +2673,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         updateBill();
         updateCreditStatusCard();
+        
+        // Initialize reminder language selector
+        if (a.reminderLanguage) {
+            a.reminderLanguage.value = state.settings.reminderLanguage || 'en';
+        }
+        
+        // Auto-check for reminders on page load (but don't auto-send, just check)
+        // User can manually click "Auto-Send All" if they want
+        setTimeout(() => {
+            if (state.customers && state.customers.length > 0) {
+                const hasPendingReminders = state.customers.some(customer => {
+                    if (customer.credit <= 0 || !customer.phone) return false;
+                    const lastReminderDate = customer.lastReminderDate ? new Date(customer.lastReminderDate) : null;
+                    const daysSinceReminder = lastReminderDate 
+                        ? Math.floor((new Date() - lastReminderDate) / (1000 * 60 * 60 * 24))
+                        : Infinity;
+                    return daysSinceReminder >= 21;
+                });
+                if (hasPendingReminders) {
+                    showNotification('💡 You have pending payment reminders! Check the Customers tab.', 'info');
+                }
+            }
+        }, 2000);
 
         // Global key listeners
         document.addEventListener('keydown', (e) => {
