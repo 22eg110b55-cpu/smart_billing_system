@@ -640,15 +640,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const billContent = `
             <div style="position: relative; background: linear-gradient(135deg, #fff9e6, #fff8dc); padding: 30px; border-radius: 15px; border: 2px solid #f0e68c; min-height: 100%;">
-                <!-- Grocery bag image at top left corner -->
-                <img src="grocery-bag.png" alt="Grocery Bag" style="position: absolute; top: 10px; left: 10px; width: 180px; height: 180px; object-fit: contain; opacity: 0.85; z-index: 1; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.25));" onerror="this.style.display='none';">
-                
                 <!-- Corner grocery items decorations -->
+                <div style="position: absolute; top: 10px; left: 10px; font-size: 30px; opacity: 0.3; z-index: 1;">🛒</div>
                 <div style="position: absolute; top: 10px; right: 10px; font-size: 30px; opacity: 0.3; z-index: 1;">🥫</div>
                 <div style="position: absolute; bottom: 10px; left: 10px; font-size: 30px; opacity: 0.3; z-index: 1;">🍚</div>
                 <div style="position: absolute; bottom: 10px; right: 10px; font-size: 30px; opacity: 0.3; z-index: 1;">🛍️</div>
                 
                 <!-- Additional grocery items around corners -->
+                <div style="position: absolute; top: 50px; left: 15px; font-size: 25px; opacity: 0.25; z-index: 1;">🥛</div>
                 <div style="position: absolute; top: 50px; right: 15px; font-size: 25px; opacity: 0.25; z-index: 1;">🍞</div>
                 <div style="position: absolute; bottom: 50px; left: 15px; font-size: 25px; opacity: 0.25; z-index: 1;">🥜</div>
                 <div style="position: absolute; bottom: 50px; right: 15px; font-size: 25px; opacity: 0.25; z-index: 1;">🧴</div>
@@ -993,15 +992,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const billContent = `
             <div style="position: relative; background: linear-gradient(135deg, #fff9e6, #fff8dc); padding: 30px; border-radius: 15px; border: 2px solid #f0e68c; min-height: 100%;">
-                <!-- Grocery bag image at top left corner -->
-                <img src="grocery-bag.png" alt="Grocery Bag" style="position: absolute; top: 10px; left: 10px; width: 90px; height: 90px; object-fit: contain; opacity: 0.85; z-index: 1; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.25));" onerror="this.style.display='none';">
-                
                 <!-- Corner grocery items decorations -->
+                <div style="position: absolute; top: 10px; left: 10px; font-size: 30px; opacity: 0.3; z-index: 1;">🛒</div>
                 <div style="position: absolute; top: 10px; right: 10px; font-size: 30px; opacity: 0.3; z-index: 1;">🥫</div>
                 <div style="position: absolute; bottom: 10px; left: 10px; font-size: 30px; opacity: 0.3; z-index: 1;">🍚</div>
                 <div style="position: absolute; bottom: 10px; right: 10px; font-size: 30px; opacity: 0.3; z-index: 1;">🛍️</div>
                 
                 <!-- Additional grocery items around corners -->
+                <div style="position: absolute; top: 50px; left: 15px; font-size: 25px; opacity: 0.25; z-index: 1;">🥛</div>
                 <div style="position: absolute; top: 50px; right: 15px; font-size: 25px; opacity: 0.25; z-index: 1;">🍞</div>
                 <div style="position: absolute; bottom: 50px; left: 15px; font-size: 25px; opacity: 0.25; z-index: 1;">🥜</div>
                 <div style="position: absolute; bottom: 50px; right: 15px; font-size: 25px; opacity: 0.25; z-index: 1;">🧴</div>
@@ -1125,12 +1123,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     .corner-icon.top-right { top: 10px; right: 10px; }
                     .corner-icon.bottom-left { bottom: 10px; left: 10px; }
                     .corner-icon.bottom-right { bottom: 10px; right: 10px; }
-                    .grocery-bag-img { position: absolute; top: 10px; left: 10px; width: 90px; height: 90px; object-fit: contain; opacity: 0.85; z-index: 1; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.25)); }
                 </style>
             </head>
             <body>
                 <div class="bill-container">
-                    <img src="grocery-bag.png" alt="Grocery Bag" class="grocery-bag-img" onerror="this.style.display='none';">
+                    <div class="corner-icon top-left">🛒</div>
                     <div class="corner-icon top-right">🥫</div>
                     <div class="corner-icon bottom-left">🍚</div>
                     <div class="corner-icon bottom-right">🛍️</div>
