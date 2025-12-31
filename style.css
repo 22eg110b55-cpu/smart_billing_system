@@ -479,8 +479,9 @@ body {
 
 .print-bill {
     padding: 30px;
-    background: white;
+    background: linear-gradient(135deg, #fff9e6, #fff8dc);
     font-family: 'Courier New', monospace;
+    position: relative;
 }
 
 .shop-header {
@@ -673,6 +674,28 @@ body {
 
     .inventory-grid {
         grid-template-columns: 1fr;
+    }
+
+    /* Calendar mobile optimization */
+    #calendarContainer table {
+        font-size: 12px;
+    }
+
+    #calendarContainer table th,
+    #calendarContainer table td {
+        padding: 8px 4px !important;
+        height: 60px !important;
+        font-size: 11px;
+    }
+
+    #calendarContainer table td div {
+        font-size: 9px !important;
+    }
+
+    #festivalModal .saved-bills-content {
+        width: 95%;
+        margin: 5% auto;
+        max-height: 90vh;
     }
 }
 

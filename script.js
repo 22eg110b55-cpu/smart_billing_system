@@ -1,3 +1,4 @@
+
 document.addEventListener('DOMContentLoaded', () => {
     // --- STATE MANAGEMENT ---
     let state = {
@@ -22,7 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
             shopContact: '9876543210',
             upiId: 'yourshop@upi',
             gstNumber: '',
-            securityPassword: ''
+            password: '' // Default empty, user needs to set it
         },
         selectedSuggestionIndex: -1
     };
@@ -108,14 +109,6 @@ document.addEventListener('DOMContentLoaded', () => {
         shopContact: document.getElementById('shopContact'),
         settingUpiId: document.getElementById('settingUpiId'),
         gstNumber: document.getElementById('gstNumber'),
-        passwordModal: document.getElementById('passwordModal'),
-        passwordInput: document.getElementById('passwordInput'),
-        currentPassword: document.getElementById('currentPassword'),
-        newPassword: document.getElementById('newPassword'),
-        confirmPassword: document.getElementById('confirmPassword'),
-        festivalModal: document.getElementById('festivalModal'),
-        festivalModalTitle: document.getElementById('festivalModalTitle'),
-        festivalModalContent: document.getElementById('festivalModalContent'),
     };
 
     // --- LOCAL STORAGE FUNCTIONS ---
@@ -126,36 +119,63 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadState = () => {
         const savedState = localStorage.getItem('kiranaProState');
         if (savedState) {
-            const parsed = JSON.parse(savedState);
-            state = {
-                ...state,
-                ...parsed,
-                currentBill: {
-                    ...state.currentBill,
-                    ...parsed.currentBill,
-                },
-            };
-        state.creditTransactions = state.creditTransactions || [];
-        state.savedBillsFilter = state.savedBillsFilter || '';
-        state.currentBill.items = state.currentBill.items || [];
-        state.currentBill.customer = state.currentBill.customer || { name: '', phone: '' };
-        state.currentBill.discountAmount = state.currentBill.discountAmount || 0;
-        state.currentBill.paymentMethod = state.currentBill.paymentMethod || 'cash';
-        state.currentBill.paymentDetails = state.currentBill.paymentDetails || null;
-        state.currentBill.isSaved = state.currentBill.isSaved || false;
-        
-        // Initialize creditBills and lastReminderDate for existing customers
-        state.customers = state.customers || [];
-        state.customers.forEach(customer => {
-            if (!customer.creditBills) customer.creditBills = [];
-            if (!customer.lastReminderDate) customer.lastReminderDate = null;
-        });
-            state.settings = {
-                ...state.settings,
-                ...(parsed.settings || {})
-            };
-            state.settings.gstNumber = state.settings.gstNumber || '';
-            state.settings.securityPassword = state.settings.securityPassword || '';
+            try {
+                const parsed = JSON.parse(savedState);
+                
+                // Merge all state properties properly
+                state.inventory = parsed.inventory || [];
+                state.customers = parsed.customers || [];
+                state.bills = parsed.bills || [];
+                state.expenses = parsed.expenses || [];
+                state.creditTransactions = parsed.creditTransactions || [];
+                state.savedBillsFilter = parsed.savedBillsFilter || '';
+                state.selectedSuggestionIndex = parsed.selectedSuggestionIndex || -1;
+                
+                // Merge currentBill properly
+                if (parsed.currentBill) {
+                    state.currentBill = {
+                        items: parsed.currentBill.items || [],
+                        customer: parsed.currentBill.customer || { name: '', phone: '' },
+                        total: parsed.currentBill.total || 0,
+                        discountAmount: parsed.currentBill.discountAmount || 0,
+                        paymentMethod: parsed.currentBill.paymentMethod || 'cash',
+                        paymentDetails: parsed.currentBill.paymentDetails || null,
+                        isSaved: parsed.currentBill.isSaved || false
+                    };
+                } else {
+                    state.currentBill = {
+                        items: [],
+                        customer: { name: '', phone: '' },
+                        total: 0,
+                        discountAmount: 0,
+                        paymentMethod: 'cash',
+                        paymentDetails: null,
+                        isSaved: false
+                    };
+                }
+                
+                // Merge settings properly including password
+                if (parsed.settings) {
+                    state.settings = {
+                        shopName: parsed.settings.shopName || 'My Kirana Store',
+                        shopAddress: parsed.settings.shopAddress || '123 Main Street, City',
+                        shopContact: parsed.settings.shopContact || '9876543210',
+                        upiId: parsed.settings.upiId || 'yourshop@upi',
+                        gstNumber: parsed.settings.gstNumber || '',
+                        password: parsed.settings.password || '' // Preserve password
+                    };
+                }
+                
+                // Initialize creditBills and lastReminderDate for existing customers
+                state.customers.forEach(customer => {
+                    if (!customer.creditBills) customer.creditBills = [];
+                    if (!customer.lastReminderDate) customer.lastReminderDate = null;
+                    if (!customer.loyaltyPoints) customer.loyaltyPoints = 0;
+                });
+            } catch (e) {
+                console.error('Error loading state:', e);
+                showNotification('Error loading saved data. Starting fresh.', 'error');
+            }
         }
     };
 
@@ -188,6 +208,39 @@ document.addEventListener('DOMContentLoaded', () => {
             clearTimeout(timeoutId);
             hideNotification();
         });
+    };
+
+    // --- PASSWORD SECURITY ---
+    const promptPassword = (message = 'Enter password:') => {
+        return prompt(message) || '';
+    };
+
+    const verifyPassword = (actionName = 'this action') => {
+        if (!state.settings.password) {
+            // First time setup - ask user to set a password
+            const newPassword = promptPassword('No password set. Please set a password for security:');
+            if (!newPassword || newPassword.trim() === '') {
+                showNotification('Password is required for security.', 'error');
+                return false;
+            }
+            const confirmPassword = promptPassword('Confirm password:');
+            if (newPassword !== confirmPassword) {
+                showNotification('Passwords do not match. Please try again.', 'error');
+                return false;
+            }
+            state.settings.password = newPassword.trim();
+            saveState();
+            showNotification('Password set successfully!', 'success');
+            return true;
+        } else {
+            // Verify existing password
+            const enteredPassword = promptPassword(`Enter password to ${actionName}:`);
+            if (enteredPassword.trim() !== state.settings.password) {
+                showNotification('Incorrect password. Access denied.', 'error');
+                return false;
+            }
+            return true;
+        }
     };
 
     // --- TAB SWITCHING ---
@@ -517,27 +570,10 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.clearBill = () => {
-        const confirmMsg = state.currentBill.isSaved 
-            ? 'Are you sure you want to clear the current bill? (Stock will not be restored as bill was already saved.)'
-            : 'Are you sure you want to clear the current bill? This will restore the stock of all items.';
+        const confirmMsg = 'Are you sure you want to clear the current bill? This will start a new bill.';
         
         if (confirm(confirmMsg)) {
-            // Only restore stock if the bill hasn't been saved yet
-            if (!state.currentBill.isSaved) {
-                state.currentBill.items.forEach(billItem => {
-                    // Only restore stock for items that are linked to inventory (not manual items)
-                    if (!billItem.isManual) {
-                        const inventoryItem = state.inventory.find(i => i.name === billItem.name);
-                        if (inventoryItem) {
-                            inventoryItem.stock += billItem.quantity;
-                        }
-                    }
-                });
-                showNotification('Bill cleared and stock restored.', 'info');
-            } else {
-                showNotification('Bill cleared. (Stock not restored - bill was already saved)', 'info');
-            }
-
+            // Clear bill without restoring stock (stock is only restored when items are removed individually)
             state.currentBill.items = [];
             state.currentBill.total = 0;
             state.currentBill.customer = { name: '', phone: '' };
@@ -567,6 +603,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 a.printBillOnly.innerHTML = '';
             }
             
+            showNotification('Bill cleared. Ready for new bill.', 'success');
             saveState();
             renderInventory();
         }
@@ -602,39 +639,56 @@ document.addEventListener('DOMContentLoaded', () => {
         ` : '';
 
         const billContent = `
-            <div class="shop-header">
-                <div class="bill-proprietor">Proprietor: Venu Gopal</div>
-                <h1>${state.settings.shopName}</h1>
-                <p>${state.settings.shopAddress}</p>
-                <p>Contact: ${state.settings.shopContact}</p>
-                ${gstLine}
-                <p>Date: ${new Date().toLocaleDateString()}</p>
-                <p>Time: ${new Date().toLocaleTimeString()}</p>
-            </div>
-            <table class="bill-table">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Item</th>
-                        <th>Qty</th>
-                        <th>Price</th>
-                        <th style="text-align: right;">Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${tableRows}
-                </tbody>
-            </table>
-            <div style="text-align: right; margin-top: 20px;">
-                <p><strong>Subtotal:</strong> ${formatCurrency(state.currentBill.total)}</p>
-                ${state.currentBill.discountAmount > 0 ? `<p><strong>Discount:</strong> -${formatCurrency(state.currentBill.discountAmount)}</p>` : ''}
-                <h2 style="margin-top: 10px;">GRAND TOTAL: ${formatCurrency(state.currentBill.total - (state.currentBill.discountAmount || 0))}</h2>
-            </div>
-            ${paymentInfoSection}
-            ${customerInfo}
-            <div class="bill-footer">
-                <p>Thank you for your visit!</p>
-                <p>Powered by Kirana Shop Pro</p>
+            <div style="position: relative; background: linear-gradient(135deg, #fff9e6, #fff8dc); padding: 30px; border-radius: 15px; border: 2px solid #f0e68c; min-height: 100%;">
+                <!-- Grocery bag image at top left corner -->
+                <img src="grocery-bag.png" alt="Grocery Bag" style="position: absolute; top: 10px; left: 10px; width: 180px; height: 180px; object-fit: contain; opacity: 0.85; z-index: 1; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.25));" onerror="this.style.display='none';">
+                
+                <!-- Corner grocery items decorations -->
+                <div style="position: absolute; top: 10px; right: 10px; font-size: 30px; opacity: 0.3; z-index: 1;">🥫</div>
+                <div style="position: absolute; bottom: 10px; left: 10px; font-size: 30px; opacity: 0.3; z-index: 1;">🍚</div>
+                <div style="position: absolute; bottom: 10px; right: 10px; font-size: 30px; opacity: 0.3; z-index: 1;">🛍️</div>
+                
+                <!-- Additional grocery items around corners -->
+                <div style="position: absolute; top: 50px; right: 15px; font-size: 25px; opacity: 0.25; z-index: 1;">🍞</div>
+                <div style="position: absolute; bottom: 50px; left: 15px; font-size: 25px; opacity: 0.25; z-index: 1;">🥜</div>
+                <div style="position: absolute; bottom: 50px; right: 15px; font-size: 25px; opacity: 0.25; z-index: 1;">🧴</div>
+                
+                <div style="position: relative; z-index: 2;">
+                    <div class="shop-header">
+                        <div class="bill-proprietor">Proprietor: Venu Gopal</div>
+                        <h1>${state.settings.shopName}</h1>
+                        <p>${state.settings.shopAddress}</p>
+                        <p>Contact: ${state.settings.shopContact}</p>
+                        ${gstLine}
+                        <p>Date: ${new Date().toLocaleDateString()}</p>
+                        <p>Time: ${new Date().toLocaleTimeString()}</p>
+                    </div>
+                    <table class="bill-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Item</th>
+                                <th>Qty</th>
+                                <th>Price</th>
+                                <th style="text-align: right;">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRows}
+                        </tbody>
+                    </table>
+                    <div style="text-align: right; margin-top: 20px;">
+                        <p><strong>Subtotal:</strong> ${formatCurrency(state.currentBill.total)}</p>
+                        ${state.currentBill.discountAmount > 0 ? `<p><strong>Discount:</strong> -${formatCurrency(state.currentBill.discountAmount)}</p>` : ''}
+                        <h2 style="margin-top: 10px;">GRAND TOTAL: ${formatCurrency(state.currentBill.total - (state.currentBill.discountAmount || 0))}</h2>
+                    </div>
+                    ${paymentInfoSection}
+                    ${customerInfo}
+                    <div class="bill-footer">
+                        <p>Thank you for your visit!</p>
+                        <p>Powered by Venu Kiranam&General store</p>
+                    </div>
+                </div>
             </div>
         `;
         if (a.inlineBillPreview) {
@@ -700,7 +754,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         billText += `\n━━━━━━━━━━━━━━━━━━━━\n`;
         billText += `🙏 *Thank you for your visit!*\n`;
-        billText += `\nPowered by Kirana Shop Pro`;
+        billText += `\nPowered by Venu Kiranam&General store`;
         
         return billText;
     };
@@ -714,21 +768,36 @@ document.addEventListener('DOMContentLoaded', () => {
         const billText = generateShareableBillText(state.currentBill);
         
         // Copy to clipboard
-        navigator.clipboard.writeText(billText).then(() => {
-            showNotification('Bill copied to clipboard! You can paste it anywhere.', 'success');
-        }).catch(() => {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(billText).then(() => {
+                showNotification('Bill copied to clipboard! You can paste it anywhere.', 'success');
+            }).catch(() => {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = billText;
+                textArea.style.position = 'fixed';
+                textArea.style.opacity = '0';
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showNotification('Bill copied to clipboard!', 'success');
+            });
+        } else {
             // Fallback for older browsers
             const textArea = document.createElement('textarea');
             textArea.value = billText;
+            textArea.style.position = 'fixed';
+            textArea.style.opacity = '0';
             document.body.appendChild(textArea);
             textArea.select();
             document.execCommand('copy');
             document.body.removeChild(textArea);
             showNotification('Bill copied to clipboard!', 'success');
-        });
+        }
     };
 
-    window.copySavedBill = (index) => {
+    window.shareSavedBill = (index) => {
         const bill = state.bills[index];
         if (!bill) {
             showNotification('Bill not found.', 'error');
@@ -737,20 +806,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const billNumber = state.bills.length - index;
         const billText = generateShareableBillText(bill, billNumber);
+        const customerPhone = bill.customer?.phone;
         
-        // Copy to clipboard
-        navigator.clipboard.writeText(billText).then(() => {
-            showNotification('Bill copied to clipboard! You can paste it anywhere.', 'success');
-        }).catch(() => {
-            // Fallback for older browsers
-            const textArea = document.createElement('textarea');
-            textArea.value = billText;
-            document.body.appendChild(textArea);
-            textArea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textArea);
-            showNotification('Bill copied to clipboard!', 'success');
-        });
+        // If customer has phone number, create WhatsApp link
+        if (customerPhone) {
+            const phoneNumber = customerPhone.replace(/[^0-9]/g, ''); // Remove non-numeric characters
+            const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(billText)}`;
+            
+            // Try to open WhatsApp
+            window.open(whatsappUrl, '_blank');
+            showNotification('Opening WhatsApp to share bill...', 'info');
+            
+            // Also copy to clipboard as fallback
+            navigator.clipboard.writeText(billText).then(() => {
+                setTimeout(() => {
+                    showNotification('Bill text also copied to clipboard!', 'success');
+                }, 1000);
+            }).catch(() => {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = billText;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+            });
+        } else {
+            // No phone number, just copy to clipboard
+            navigator.clipboard.writeText(billText).then(() => {
+                showNotification('Bill text copied to clipboard! You can paste it in WhatsApp/SMS.', 'success');
+            }).catch(() => {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = billText;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showNotification('Bill text copied to clipboard!', 'success');
+            });
+        }
     };
 
     window.saveBill = () => {
@@ -897,48 +992,65 @@ document.addEventListener('DOMContentLoaded', () => {
         const billTime = bill.date ? new Date(bill.date).toLocaleTimeString('en-IN') : 'Unknown';
 
         const billContent = `
-            <div class="shop-header">
-                <div class="bill-proprietor">Proprietor: Venu Gopal</div>
-                <h1>${state.settings.shopName}</h1>
-                <p>${state.settings.shopAddress}</p>
-                <p>Contact: ${state.settings.shopContact}</p>
-                ${gstLine}
-                <p>Date: ${billDate}</p>
-                <p>Time: ${billTime}</p>
-            </div>
-            <table class="bill-table">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Item</th>
-                        <th>Qty</th>
-                        <th>Price</th>
-                        <th style="text-align: right;">Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${tableRows}
-                </tbody>
-            </table>
-            <div style="text-align: right; margin-top: 20px;">
-                <p><strong>Subtotal:</strong> ${formatCurrency(bill.total)}</p>
-                ${bill.discountAmount > 0 ? `<p><strong>Discount:</strong> -${formatCurrency(bill.discountAmount)}</p>` : ''}
-                <h2 style="margin-top: 10px;">GRAND TOTAL: ${formatCurrency(bill.total - (bill.discountAmount || 0))}</h2>
-            </div>
-            ${paymentInfoSection}
-            ${customerInfo}
-            <div class="bill-footer">
-                <p>Thank you for your visit!</p>
-                <p>Powered by Kirana Shop Pro</p>
-            </div>
-            <div style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 8px; border-left: 4px solid #2196f3;">
-                <p style="margin: 0;"><strong>📌 Credit Reference:</strong></p>
-                <p style="margin: 5px 0 0 0;">This bill is linked to credit for <strong>${customer.name}</strong></p>
-                <p style="margin: 5px 0 0 0;">Credit Amount: <strong>${formatCurrency(customer.credit)}</strong></p>
-            </div>
-            <div style="text-align: center; margin-top: 20px;">
-                <button class="btn btn-primary" onclick="copySavedBill(${billIndex})" style="margin-right: 10px;">📋 Copy Bill</button>
-                <button class="btn btn-secondary" onclick="printCreditBill(${billIndex})">🖨️ Print</button>
+            <div style="position: relative; background: linear-gradient(135deg, #fff9e6, #fff8dc); padding: 30px; border-radius: 15px; border: 2px solid #f0e68c; min-height: 100%;">
+                <!-- Grocery bag image at top left corner -->
+                <img src="grocery-bag.png" alt="Grocery Bag" style="position: absolute; top: 10px; left: 10px; width: 90px; height: 90px; object-fit: contain; opacity: 0.85; z-index: 1; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.25));" onerror="this.style.display='none';">
+                
+                <!-- Corner grocery items decorations -->
+                <div style="position: absolute; top: 10px; right: 10px; font-size: 30px; opacity: 0.3; z-index: 1;">🥫</div>
+                <div style="position: absolute; bottom: 10px; left: 10px; font-size: 30px; opacity: 0.3; z-index: 1;">🍚</div>
+                <div style="position: absolute; bottom: 10px; right: 10px; font-size: 30px; opacity: 0.3; z-index: 1;">🛍️</div>
+                
+                <!-- Additional grocery items around corners -->
+                <div style="position: absolute; top: 50px; right: 15px; font-size: 25px; opacity: 0.25; z-index: 1;">🍞</div>
+                <div style="position: absolute; bottom: 50px; left: 15px; font-size: 25px; opacity: 0.25; z-index: 1;">🥜</div>
+                <div style="position: absolute; bottom: 50px; right: 15px; font-size: 25px; opacity: 0.25; z-index: 1;">🧴</div>
+                
+                <div style="position: relative; z-index: 2;">
+                    <div class="shop-header">
+                        <div class="bill-proprietor">Proprietor: Venu Gopal</div>
+                        <h1>${state.settings.shopName}</h1>
+                        <p>${state.settings.shopAddress}</p>
+                        <p>Contact: ${state.settings.shopContact}</p>
+                        ${gstLine}
+                        <p>Date: ${billDate}</p>
+                        <p>Time: ${billTime}</p>
+                    </div>
+                    <table class="bill-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Item</th>
+                                <th>Qty</th>
+                                <th>Price</th>
+                                <th style="text-align: right;">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRows}
+                        </tbody>
+                    </table>
+                    <div style="text-align: right; margin-top: 20px;">
+                        <p><strong>Subtotal:</strong> ${formatCurrency(bill.total)}</p>
+                        ${bill.discountAmount > 0 ? `<p><strong>Discount:</strong> -${formatCurrency(bill.discountAmount)}</p>` : ''}
+                        <h2 style="margin-top: 10px;">GRAND TOTAL: ${formatCurrency(bill.total - (bill.discountAmount || 0))}</h2>
+                    </div>
+                    ${paymentInfoSection}
+                    ${customerInfo}
+                    <div class="bill-footer">
+                        <p>Thank you for your visit!</p>
+                        <p>Powered by Venu Kiranam&General store</p>
+                    </div>
+                    <div style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 8px; border-left: 4px solid #2196f3;">
+                        <p style="margin: 0;"><strong>📌 Credit Reference:</strong></p>
+                        <p style="margin: 5px 0 0 0;">This bill is linked to credit for <strong>${customer.name}</strong></p>
+                        <p style="margin: 5px 0 0 0;">Credit Amount: <strong>${formatCurrency(customer.credit)}</strong></p>
+                    </div>
+                    <div style="text-align: center; margin-top: 20px;">
+                        <button class="btn btn-primary" onclick="shareSavedBill(${billIndex})" style="margin-right: 10px;">📱 Share This Bill</button>
+                        <button class="btn btn-secondary" onclick="printCreditBill(${billIndex})">🖨️ Print</button>
+                    </div>
+                </div>
             </div>
         `;
 
@@ -1001,16 +1113,29 @@ document.addEventListener('DOMContentLoaded', () => {
             <head>
                 <title>Bill #${state.bills.length - billIndex}</title>
                 <style>
-                    body { font-family: Arial, sans-serif; padding: 20px; }
+                    body { font-family: Arial, sans-serif; padding: 20px; background: linear-gradient(135deg, #fff9e6, #fff8dc); }
                     .shop-header { text-align: center; margin-bottom: 20px; }
                     .bill-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
                     .bill-table th, .bill-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
                     .bill-table th { background-color: #f2f2f2; }
                     .bill-footer { text-align: center; margin-top: 20px; }
+                    .bill-container { position: relative; padding: 30px; }
+                    .corner-icon { position: absolute; font-size: 30px; opacity: 0.3; }
+                    .corner-icon.top-left { top: 10px; left: 10px; }
+                    .corner-icon.top-right { top: 10px; right: 10px; }
+                    .corner-icon.bottom-left { bottom: 10px; left: 10px; }
+                    .corner-icon.bottom-right { bottom: 10px; right: 10px; }
+                    .grocery-bag-img { position: absolute; top: 10px; left: 10px; width: 90px; height: 90px; object-fit: contain; opacity: 0.85; z-index: 1; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.25)); }
                 </style>
             </head>
             <body>
-                <div class="shop-header">
+                <div class="bill-container">
+                    <img src="grocery-bag.png" alt="Grocery Bag" class="grocery-bag-img" onerror="this.style.display='none';">
+                    <div class="corner-icon top-right">🥫</div>
+                    <div class="corner-icon bottom-left">🍚</div>
+                    <div class="corner-icon bottom-right">🛍️</div>
+                    <div style="position: relative; z-index: 2;">
+                        <div class="shop-header">
                     <div>Proprietor: Venu Gopal</div>
                     <h1>${state.settings.shopName}</h1>
                     <p>${state.settings.shopAddress}</p>
@@ -1042,7 +1167,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${customerInfo}
                 <div class="bill-footer">
                     <p>Thank you for your visit!</p>
-                    <p>Powered by Kirana Shop Pro</p>
+                    <p>Powered by Venu Kiranam&General store</p>
+                        </div>
+                    </div>
                 </div>
             </body>
             </html>
@@ -1110,7 +1237,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </p>
                     </div>
                     <div>
-                        <button class="btn btn-success" onclick="copySavedBill(${index})" style="margin-bottom: 5px;">📋 Copy</button>
+                        <button class="btn btn-success" onclick="shareSavedBill(${index})" style="margin-bottom: 5px;">📱 Share</button>
                         <button class="btn btn-secondary" onclick="resaveBill(${index})">📝 Re-bill</button>
                         <button class="btn btn-danger" onclick="deleteBill(${index})">🗑️ Delete</button>
                     </div>
@@ -1797,10 +1924,12 @@ document.addEventListener('DOMContentLoaded', () => {
         loadCreditBills(); // Reload bills
     };
 
-    // Store pending action for password verification
-    let pendingAction = null;
-
     window.collectPayment = () => {
+        // Password protection
+        if (!verifyPassword('collect payment')) {
+            return;
+        }
+
         const customerIndex = a.creditCustomer.value;
         const amount = parseFloat(a.creditAmount.value);
 
@@ -1809,45 +1938,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Check if password is set, if yes, require password verification
-        if (state.settings.securityPassword && state.settings.securityPassword.trim() !== '') {
-            const customerIndexNum = typeof customerIndex === 'string' ? parseInt(customerIndex, 10) : customerIndex;
-            pendingAction = { 
-                type: 'collectPayment', 
-                customerIndex: customerIndexNum, 
-                amount: amount 
-            };
-            showPasswordModal('Collect Payment');
-            return;
-        }
-
-        // If no password set, proceed directly
-        executeCollectPayment(customerIndex, amount);
-    };
-
-    const executeCollectPayment = (customerIndex, amount) => {
-        if (customerIndex === undefined || customerIndex === null || customerIndex === '') {
-            showNotification('Invalid customer selected. Please try again.', 'error');
-            return;
-        }
-        
-        if (isNaN(amount) || amount <= 0) {
-            showNotification('Invalid amount. Please enter a valid amount.', 'error');
-            return;
-        }
-        
         const customer = state.customers[customerIndex];
-        if (!customer) {
-            showNotification('Customer not found. Please try again.', 'error');
-            return;
-        }
-        
-        const priorCredit = customer.credit || 0;
+        const priorCredit = customer.credit;
         if (priorCredit <= 0) {
             showNotification(`${customer.name} has no outstanding credit.`, 'info');
             return;
         }
-        
         const appliedAmount = Math.min(amount, priorCredit);
         const remainingCredit = Math.max(0, priorCredit - amount);
         
@@ -1874,7 +1970,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderCreditHistory();
         updateCreditStatusCard();
         showNotification(`Payment of ${formatCurrency(appliedAmount)} collected from ${customer.name}.`, 'success');
-        if (a.creditAmount) a.creditAmount.value = '';
+        a.creditAmount.value = '';
     };
 
     // --- ANALYTICS FUNCTIONS ---
@@ -2277,11 +2373,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         cellBg = 'background: #f5f5f5;';
                     }
 
-                    const festivalData = hasFestival ? JSON.stringify(festivals.map(f => ({ name: f.name, type: f.type }))).replace(/"/g, '&quot;') : '';
-                    const clickHandler = hasFestival ? `onclick="showFestivalDetails(${year}, ${month + 1}, ${currentDay}, '${festivalData}')"` : '';
+                    // Make cell clickable if it has festivals
+                    const clickHandler = hasFestival ? `onclick="showFestivalDetails(${year}, ${month + 1}, ${currentDay})"` : '';
                     const cursorStyle = hasFestival ? 'cursor: pointer;' : '';
-                    
-                    calendarHtml += `<td style="${cellStyle} ${cellBg} ${cursorStyle}" ${clickHandler} title="${hasFestival ? festivals.map(f => f.name).join(', ') : ''}">`;
+                    calendarHtml += `<td style="${cellStyle} ${cellBg} ${cursorStyle}" ${clickHandler}>`;
                     calendarHtml += `<div style="font-weight: ${isToday ? 'bold' : 'normal'}; font-size: 16px; color: ${isToday ? '#1976d2' : '#333'}; margin-bottom: 5px;">${currentDay}</div>`;
                     
                     if (hasFestival) {
@@ -2378,65 +2473,77 @@ document.addEventListener('DOMContentLoaded', () => {
         renderCalendar();
     };
 
-    window.showFestivalDetails = (year, month, day, festivalDataStr) => {
-        if (!a.festivalModal) return;
+    window.showFestivalDetails = (year, month, day) => {
+        const festivals = getFestivalsForDate(year, month, day);
+        if (festivals.length === 0) return;
+
+        const festivalModal = document.getElementById('festivalModal');
+        const festivalModalHeader = document.getElementById('festivalModalHeader');
+        const festivalModalTitle = document.getElementById('festivalModalTitle');
+        const festivalModalBody = document.getElementById('festivalModalBody');
+
+        if (!festivalModal) return;
+
+        const dateStr = new Date(year, month - 1, day).toLocaleDateString('en-IN', { 
+            weekday: 'long', 
+            day: 'numeric', 
+            month: 'long', 
+            year: 'numeric' 
+        });
+
+        // Determine background theme based on festival type
+        let headerBg = 'linear-gradient(135deg, #667eea, #764ba2)'; // Default
+        let bodyBg = '#ffffff';
         
-        try {
-            const festivals = JSON.parse(festivalDataStr.replace(/&quot;/g, '"'));
-            const date = new Date(year, month - 1, day);
-            const dateStr = date.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
-            
-            let festivalContent = `<div style="text-align: center; margin-bottom: 20px;">`;
-            festivalContent += `<h3 style="color: #1976d2; margin-bottom: 10px;">${dateStr}</h3>`;
-            festivalContent += `</div>`;
-            
-            festivals.forEach(festival => {
-                const isMajor = festival.type === 'major';
-                const isNational = festival.type === 'national';
-                const themeBg = isMajor 
-                    ? 'linear-gradient(135deg, #fff3e0, #ffe0b2, #ffcc80)' 
-                    : isNational 
-                    ? 'linear-gradient(135deg, #e8f5e9, #c8e6c9, #a5d6a7)'
-                    : 'linear-gradient(135deg, #f5f5f5, #e0e0e0)';
-                const emoji = isMajor ? '🎉' : isNational ? '🇮🇳' : '📅';
-                const borderColor = isMajor ? '#f57c00' : isNational ? '#2e7d32' : '#666';
-                
-                festivalContent += `
-                    <div style="background: ${themeBg}; padding: 20px; border-radius: 15px; border-left: 5px solid ${borderColor}; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                        <div style="text-align: center;">
-                            <div style="font-size: 48px; margin-bottom: 10px;">${emoji}</div>
-                            <h2 style="color: ${borderColor}; margin: 10px 0;">${festival.name}</h2>
-                            <p style="color: #666; font-size: 14px; margin-top: 10px;">
-                                ${isMajor ? 'Major Festival - Plan your stock accordingly!' : isNational ? 'National Holiday' : 'Special Day'}
-                            </p>
-                        </div>
-                    </div>
-                `;
-            });
-            
-            a.festivalModalTitle.textContent = `🎉 Festival Details - ${dateStr}`;
-            a.festivalModalContent.innerHTML = festivalContent;
-            a.festivalModal.style.display = 'flex';
-        } catch (error) {
-            showNotification('Error displaying festival details.', 'error');
-            console.error('Festival modal error:', error);
+        const majorFestival = festivals.find(f => f.type === 'major');
+        const nationalFestival = festivals.find(f => f.type === 'national');
+        
+        if (majorFestival) {
+            headerBg = 'linear-gradient(135deg, #ff9800, #f57c00)';
+            bodyBg = 'linear-gradient(135deg, #fff3e0, #ffe0b2)';
+        } else if (nationalFestival) {
+            headerBg = 'linear-gradient(135deg, #4caf50, #2e7d32)';
+            bodyBg = 'linear-gradient(135deg, #e8f5e9, #c8e6c9)';
         }
+
+        festivalModalHeader.style.background = headerBg;
+        festivalModalBody.style.background = bodyBg;
+
+        let festivalsHtml = `<h2 style="margin-bottom: 20px; color: #333;">${dateStr}</h2>`;
+        
+        festivals.forEach(festival => {
+            const emoji = festival.type === 'major' ? '🎉' : festival.type === 'national' ? '🇮🇳' : '📅';
+            const typeText = festival.type === 'major' ? 'Major Festival' : festival.type === 'national' ? 'National Holiday' : 'Special Day';
+            const typeColor = festival.type === 'major' ? '#f57c00' : festival.type === 'national' ? '#2e7d32' : '#666';
+            
+            festivalsHtml += `
+                <div style="background: rgba(255, 255, 255, 0.9); padding: 20px; border-radius: 15px; margin-bottom: 15px; border-left: 5px solid ${typeColor}; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                    <div style="font-size: 48px; margin-bottom: 10px;">${emoji}</div>
+                    <h3 style="color: ${typeColor}; margin-bottom: 10px; font-size: 24px;">${festival.name}</h3>
+                    <p style="color: #666; font-weight: 600;">${typeText}</p>
+                </div>
+            `;
+        });
+
+        festivalModalBody.innerHTML = festivalsHtml;
+        festivalModalTitle.textContent = `${festivals.length > 1 ? 'Festivals' : 'Festival'} on ${day}`;
+        festivalModal.style.display = 'flex';
     };
 
     window.closeFestivalModal = () => {
-        if (a.festivalModal) {
-            a.festivalModal.style.display = 'none';
+        const festivalModal = document.getElementById('festivalModal');
+        if (festivalModal) {
+            festivalModal.style.display = 'none';
         }
     };
 
-    // Close festival modal when clicking outside
-    if (a.festivalModal) {
-        a.festivalModal.addEventListener('click', (e) => {
-            if (e.target === a.festivalModal) {
-                closeFestivalModal();
-            }
-        });
-    }
+    // Close modal when clicking outside
+    document.addEventListener('click', (e) => {
+        const festivalModal = document.getElementById('festivalModal');
+        if (festivalModal && e.target === festivalModal) {
+            closeFestivalModal();
+        }
+    });
 
     // --- SETTINGS FUNCTIONS ---
     const renderSettings = () => {
@@ -2450,18 +2557,11 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.saveSettings = () => {
-        // Check if password is set, if yes, require password verification
-        if (state.settings.securityPassword && state.settings.securityPassword.trim() !== '') {
-            pendingAction = { type: 'saveSettings' };
-            showPasswordModal('Save Settings');
+        // Password protection for settings changes
+        if (!verifyPassword('save settings')) {
             return;
         }
 
-        // If no password set, proceed directly
-        executeSaveSettings();
-    };
-
-    const executeSaveSettings = () => {
         state.settings.shopName = a.shopName.value.trim();
         state.settings.shopAddress = a.shopAddress.value.trim();
         state.settings.shopContact = a.shopContact.value.trim();
@@ -2476,158 +2576,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelector('.header h1').textContent = `🏪 ${state.settings.shopName}`;
     };
 
-    // Password management functions
-    window.showPasswordModal = (actionName) => {
-        if (!a.passwordModal) return;
-        a.passwordModal.style.display = 'flex';
-        if (a.passwordInput) {
-            a.passwordInput.value = '';
-            a.passwordInput.focus();
-        }
-        const modalTitle = a.passwordModal.querySelector('h2');
-        if (modalTitle && actionName) {
-            modalTitle.textContent = `🔒 Security Password Required - ${actionName}`;
-        }
-    };
-
-    window.closePasswordModal = () => {
-        if (!a.passwordModal) return;
-        a.passwordModal.style.display = 'none';
-        if (a.passwordInput) {
-            a.passwordInput.value = '';
-        }
-        pendingAction = null;
-    };
-
-    window.verifyPassword = () => {
-        const enteredPassword = (a.passwordInput?.value || '').trim();
-        const storedPassword = (state.settings.securityPassword || '').trim();
-
-        if (!enteredPassword) {
-            showNotification('Please enter a password.', 'error');
-            return;
-        }
-
-        if (!storedPassword) {
-            showNotification('No password is set. Please set a password in Settings first.', 'error');
-            closePasswordModal();
-            return;
-        }
-
-        if (enteredPassword !== storedPassword) {
-            showNotification('Incorrect password. Please try again.', 'error');
-            if (a.passwordInput) {
-                a.passwordInput.value = '';
-                a.passwordInput.focus();
-            }
-            return;
-        }
-
-        // Password verified successfully
-        showNotification('Password verified successfully!', 'success');
-        
-        const actionToExecute = pendingAction;
-        closePasswordModal();
-        
-        setTimeout(() => {
-            if (actionToExecute) {
-                if (actionToExecute.type === 'collectPayment') {
-                    const customerIndex = typeof actionToExecute.customerIndex === 'string' 
-                        ? parseInt(actionToExecute.customerIndex, 10) 
-                        : actionToExecute.customerIndex;
-                    const amount = parseFloat(actionToExecute.amount);
-                    
-                    if (isNaN(customerIndex) || customerIndex < 0 || !state.customers[customerIndex]) {
-                        showNotification('Invalid customer selected. Please try again.', 'error');
-                        return;
-                    }
-                    if (isNaN(amount) || amount <= 0) {
-                        showNotification('Invalid amount. Please try again.', 'error');
-                        return;
-                    }
-                    
-                    executeCollectPayment(customerIndex, amount);
-                } else if (actionToExecute.type === 'resetData') {
-                    executeResetData();
-                } else if (actionToExecute.type === 'saveSettings') {
-                    executeSaveSettings();
-                }
-            }
-        }, 100);
-    };
-
-    window.changePassword = () => {
-        const currentPwd = a.currentPassword?.value || '';
-        const newPwd = a.newPassword?.value || '';
-        const confirmPwd = a.confirmPassword?.value || '';
-        const storedPassword = state.settings.securityPassword || '';
-
-        // If password is already set, require current password
-        if (storedPassword && storedPassword.trim() !== '') {
-            if (!currentPwd) {
-                showNotification('Please enter your current password.', 'error');
-                return;
-            }
-            if (currentPwd !== storedPassword) {
-                showNotification('Current password is incorrect.', 'error');
-                if (a.currentPassword) a.currentPassword.value = '';
-                if (a.currentPassword) a.currentPassword.focus();
-                return;
-            }
-        }
-
-        // Validate new password
-        if (!newPwd) {
-            showNotification('Please enter a new password.', 'error');
-            return;
-        }
-
-        if (newPwd.length < 4) {
-            showNotification('Password must be at least 4 characters long.', 'error');
-            return;
-        }
-
-        if (newPwd !== confirmPwd) {
-            showNotification('New password and confirm password do not match.', 'error');
-            if (a.newPassword) a.newPassword.value = '';
-            if (a.confirmPassword) a.confirmPassword.value = '';
-            if (a.newPassword) a.newPassword.focus();
-            return;
-        }
-
-        // Save new password
-        state.settings.securityPassword = newPwd;
-        saveState();
-        
-        // Clear password fields
-        if (a.currentPassword) a.currentPassword.value = '';
-        if (a.newPassword) a.newPassword.value = '';
-        if (a.confirmPassword) a.confirmPassword.value = '';
-
-        showNotification('Password changed successfully!', 'success');
-    };
-
-    // Close password modal when clicking outside
-    if (a.passwordModal) {
-        a.passwordModal.addEventListener('click', (e) => {
-            if (e.target === a.passwordModal) {
-                closePasswordModal();
-            }
-        });
-    }
-
     window.resetData = () => {
-        // Check if password is set, if yes, require password verification
-        if (state.settings.securityPassword && state.settings.securityPassword.trim() !== '') {
-            if (confirm('ARE YOU ABSOLUTELY SURE? This will delete all your data permanently. This action cannot be undone.')) {
-                pendingAction = { type: 'resetData' };
-                showPasswordModal('Factory Reset');
-                return;
-            }
+        // Password protection
+        if (!verifyPassword('factory reset')) {
             return;
         }
 
-        // If no password set, proceed with old confirmation
         if (confirm('ARE YOU ABSOLUTELY SURE? This will delete all your data permanently. This action cannot be undone.')) {
             if (prompt('To confirm, please type "DELETE" in all caps.') === 'DELETE') {
                 localStorage.removeItem('kiranaProState');
@@ -2638,20 +2592,187 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    const executeResetData = () => {
-        if (confirm('This will permanently delete ALL data. Are you absolutely sure?')) {
-            try {
-                localStorage.removeItem('kiranaProState');
-                showNotification('Data reset successfully. Reloading...', 'success');
-                setTimeout(() => {
-                    location.reload();
-                }, 500);
-            } catch (error) {
-                showNotification('Error resetting data. Please try again.', 'error');
-                console.error('Reset error:', error);
+    window.exportData = () => {
+        // Password protection
+        if (!verifyPassword('export data')) {
+            return;
+        }
+
+        // Create a data object with all state
+        const exportDataObj = {
+            version: '1.0',
+            exportDate: new Date().toISOString(),
+            data: {
+                inventory: state.inventory,
+                customers: state.customers,
+                bills: state.bills,
+                expenses: state.expenses,
+                creditTransactions: state.creditTransactions,
+                settings: state.settings
             }
+        };
+
+        // Convert to JSON string
+        const dataStr = JSON.stringify(exportDataObj, null, 2);
+        
+        // Create a blob and download
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `kirana-shop-data-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        showNotification('Data exported successfully! You can now transfer this file to another device.', 'success');
+    };
+
+    window.importData = () => {
+        // Password protection
+        if (!verifyPassword('import data')) {
+            return;
+        }
+
+        // Create file input element
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.style.display = 'none';
+        
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const importedData = JSON.parse(event.target.result);
+                    
+                    // Validate the imported data structure
+                    if (!importedData.data) {
+                        showNotification('Invalid data file format.', 'error');
+                        return;
+                    }
+                    
+                    // Confirm before importing
+                    if (confirm('Importing data will replace all current data. Are you sure you want to continue?')) {
+                        // Backup current state
+                        const backup = JSON.stringify(state);
+                        
+                        try {
+                            // Import the data
+                            if (importedData.data.inventory) state.inventory = importedData.data.inventory;
+                            if (importedData.data.customers) state.customers = importedData.data.customers;
+                            if (importedData.data.bills) state.bills = importedData.data.bills;
+                            if (importedData.data.expenses) state.expenses = importedData.data.expenses;
+                            if (importedData.data.creditTransactions) state.creditTransactions = importedData.data.creditTransactions;
+                            if (importedData.data.settings) {
+                                state.settings = {
+                                    shopName: importedData.data.settings.shopName || state.settings.shopName,
+                                    shopAddress: importedData.data.settings.shopAddress || state.settings.shopAddress,
+                                    shopContact: importedData.data.settings.shopContact || state.settings.shopContact,
+                                    upiId: importedData.data.settings.upiId || state.settings.upiId,
+                                    gstNumber: importedData.data.settings.gstNumber || state.settings.gstNumber,
+                                    password: importedData.data.settings.password || state.settings.password
+                                };
+                            }
+                            
+                            // Reset current bill on import
+                            state.currentBill = {
+                                items: [],
+                                customer: { name: '', phone: '' },
+                                total: 0,
+                                discountAmount: 0,
+                                paymentMethod: 'cash',
+                                paymentDetails: null,
+                                isSaved: false
+                            };
+                            
+                            // Initialize customer properties
+                            state.customers.forEach(customer => {
+                                if (!customer.creditBills) customer.creditBills = [];
+                                if (!customer.lastReminderDate) customer.lastReminderDate = null;
+                                if (!customer.loyaltyPoints) customer.loyaltyPoints = 0;
+                            });
+                            
+                            // Save to localStorage
+                            saveState();
+                            
+                            // Refresh all views
+                            renderSettings();
+                            renderInventory();
+                            renderCustomerList();
+                            renderAnalytics();
+                            renderExpenses();
+                            renderCreditHistory();
+                            updateBill();
+                            updateCreditStatusCard();
+                            
+                            // Update header
+                            document.querySelector('.header h1').textContent = `🏪 ${state.settings.shopName}`;
+                            
+                            showNotification('Data imported successfully!', 'success');
+                        } catch (error) {
+                            // Restore backup on error
+                            state = JSON.parse(backup);
+                            showNotification('Error importing data. Operation cancelled.', 'error');
+                            console.error('Import error:', error);
+                        }
+                    }
+                } catch (error) {
+                    showNotification('Error reading file. Please check the file format.', 'error');
+                    console.error('File read error:', error);
+                }
+            };
+            
+            reader.readAsText(file);
+        };
+        
+        document.body.appendChild(input);
+        input.click();
+        document.body.removeChild(input);
+    };
+
+    window.changePassword = () => {
+        // First verify current password
+        if (!state.settings.password) {
+            // No password set, set new one
+            const newPassword = promptPassword('Set new password:');
+            if (!newPassword || newPassword.trim() === '') {
+                showNotification('Password cannot be empty.', 'error');
+                return;
+            }
+            const confirmPassword = promptPassword('Confirm password:');
+            if (newPassword !== confirmPassword) {
+                showNotification('Passwords do not match. Please try again.', 'error');
+                return;
+            }
+            state.settings.password = newPassword.trim();
+            saveState();
+            showNotification('Password set successfully!', 'success');
         } else {
-            showNotification('Factory reset cancelled.', 'info');
+            // Verify current password first
+            const currentPassword = promptPassword('Enter current password:');
+            if (currentPassword.trim() !== state.settings.password) {
+                showNotification('Incorrect current password. Password change cancelled.', 'error');
+                return;
+            }
+            // Get new password
+            const newPassword = promptPassword('Enter new password:');
+            if (!newPassword || newPassword.trim() === '') {
+                showNotification('Password cannot be empty.', 'error');
+                return;
+            }
+            const confirmPassword = promptPassword('Confirm new password:');
+            if (newPassword !== confirmPassword) {
+                showNotification('Passwords do not match. Please try again.', 'error');
+                return;
+            }
+            state.settings.password = newPassword.trim();
+            saveState();
+            showNotification('Password changed successfully!', 'success');
         }
     };
 
@@ -2706,5 +2827,3 @@ document.addEventListener('DOMContentLoaded', () => {
     // Run initialization
     init();
 });
-
-
