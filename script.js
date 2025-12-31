@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
             shopContact: '9876543210',
             upiId: 'yourshop@upi',
             gstNumber: '',
-            securityPassword: '' // Password for sensitive operations
+            securityPassword: ''
         },
         selectedSuggestionIndex: -1
     };
@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
         summaryText: document.getElementById('summaryText'),
         showBillBtn: document.getElementById('showBillBtn'),
         saveBillBtn: document.getElementById('saveBillBtn'),
-        shareBillBtn: document.getElementById('shareBillBtn'),
+        copyBillBtn: document.getElementById('copyBillBtn'),
         // Modals
         inlineBillPreview: document.getElementById('inlineBillPreview'),
         printBillOnly: document.getElementById('printBillOnly'),
@@ -73,11 +73,6 @@ document.addEventListener('DOMContentLoaded', () => {
         savedBillsSearch: document.getElementById('savedBillsSearch'),
         creditBillModal: document.getElementById('creditBillModal'),
         creditBillContent: document.getElementById('creditBillContent'),
-        passwordModal: document.getElementById('passwordModal'),
-        passwordInput: document.getElementById('passwordInput'),
-        currentPassword: document.getElementById('currentPassword'),
-        newPassword: document.getElementById('newPassword'),
-        confirmPassword: document.getElementById('confirmPassword'),
         // Customers
         newCustomerName: document.getElementById('newCustomerName'),
         newCustomerPhone: document.getElementById('newCustomerPhone'),
@@ -86,7 +81,6 @@ document.addEventListener('DOMContentLoaded', () => {
         creditAmount: document.getElementById('creditAmount'),
         creditBill: document.getElementById('creditBill'),
         reminderList: document.getElementById('reminderList'),
-        reminderLanguage: document.getElementById('reminderLanguage'),
         customerList: document.getElementById('customerList'),
         creditStatusCard: document.getElementById('creditStatusCard'),
         creditHistoryList: document.getElementById('creditHistoryList'),
@@ -114,6 +108,14 @@ document.addEventListener('DOMContentLoaded', () => {
         shopContact: document.getElementById('shopContact'),
         settingUpiId: document.getElementById('settingUpiId'),
         gstNumber: document.getElementById('gstNumber'),
+        passwordModal: document.getElementById('passwordModal'),
+        passwordInput: document.getElementById('passwordInput'),
+        currentPassword: document.getElementById('currentPassword'),
+        newPassword: document.getElementById('newPassword'),
+        confirmPassword: document.getElementById('confirmPassword'),
+        festivalModal: document.getElementById('festivalModal'),
+        festivalModalTitle: document.getElementById('festivalModalTitle'),
+        festivalModalContent: document.getElementById('festivalModalContent'),
     };
 
     // --- LOCAL STORAGE FUNCTIONS ---
@@ -153,8 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ...(parsed.settings || {})
             };
             state.settings.gstNumber = state.settings.gstNumber || '';
-        state.settings.securityPassword = state.settings.securityPassword || '';
-        state.settings.reminderLanguage = state.settings.reminderLanguage || 'en';
+            state.settings.securityPassword = state.settings.securityPassword || '';
         }
     };
 
@@ -465,7 +466,7 @@ document.addEventListener('DOMContentLoaded', () => {
             a.billItems.innerHTML = `<p style="text-align: center; color: #666; padding: 40px;">No items added yet</p>`;
             if (a.showBillBtn) a.showBillBtn.disabled = true;
             if (a.saveBillBtn) a.saveBillBtn.disabled = true;
-            if (a.shareBillBtn) a.shareBillBtn.disabled = true;
+            if (a.copyBillBtn) a.copyBillBtn.disabled = true;
         } else {
             state.currentBill.items.forEach((item, index) => {
                 const billItemElement = document.createElement('div');
@@ -484,7 +485,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             if (a.showBillBtn) a.showBillBtn.disabled = false;
             if (a.saveBillBtn) a.saveBillBtn.disabled = false;
-            if (a.shareBillBtn) a.shareBillBtn.disabled = false;
+            if (a.copyBillBtn) a.copyBillBtn.disabled = false;
         }
         a.billTotal.textContent = `Total: ${formatCurrency(state.currentBill.total)}`;
         handlePaymentMethodChange(); // Update payment details whenever the total changes
@@ -550,13 +551,21 @@ document.addEventListener('DOMContentLoaded', () => {
             a.paymentMethod.value = 'cash';
             a.quantity.value = '';
             if (a.splitAmount) a.splitAmount.value = '';
+            // Clear manual item entry fields
+            if (a.manualItemName) a.manualItemName.value = '';
+            if (a.manualItemQuantity) a.manualItemQuantity.value = '';
+            if (a.manualItemPrice) a.manualItemPrice.value = '';
             handlePaymentMethodChange();
 
             updateBill();
             
             // Clear the generated bill preview
-            if (a.inlineBillPreview) a.inlineBillPreview.innerHTML = '';
-            if (a.printBillOnly) a.printBillOnly.innerHTML = '';
+            if (a.inlineBillPreview) {
+                a.inlineBillPreview.innerHTML = '';
+            }
+            if (a.printBillOnly) {
+                a.printBillOnly.innerHTML = '';
+            }
             
             saveState();
             renderInventory();
@@ -696,56 +705,30 @@ document.addEventListener('DOMContentLoaded', () => {
         return billText;
     };
 
-    window.shareBill = () => {
+    window.copyBill = () => {
         if (state.currentBill.items.length === 0) {
-            showNotification('Cannot share an empty bill.', 'error');
+            showNotification('Cannot copy an empty bill.', 'error');
             return;
         }
 
         const billText = generateShareableBillText(state.currentBill);
-        const customerPhone = state.currentBill.customer.phone;
         
-        // If customer has phone number, create WhatsApp link
-        if (customerPhone) {
-            const phoneNumber = customerPhone.replace(/[^0-9]/g, ''); // Remove non-numeric characters
-            const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(billText)}`;
-            
-            // Try to open WhatsApp
-            window.open(whatsappUrl, '_blank');
-            showNotification('Opening WhatsApp to share bill...', 'info');
-            
-            // Also copy to clipboard as fallback
-            navigator.clipboard.writeText(billText).then(() => {
-                setTimeout(() => {
-                    showNotification('Bill text also copied to clipboard!', 'success');
-                }, 1000);
-            }).catch(() => {
-                // Fallback for older browsers
-                const textArea = document.createElement('textarea');
-                textArea.value = billText;
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-            });
-        } else {
-            // No phone number, just copy to clipboard
-            navigator.clipboard.writeText(billText).then(() => {
-                showNotification('Bill text copied to clipboard! You can paste it in WhatsApp/SMS.', 'success');
-            }).catch(() => {
-                // Fallback for older browsers
-                const textArea = document.createElement('textarea');
-                textArea.value = billText;
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-                showNotification('Bill text copied to clipboard!', 'success');
-            });
-        }
+        // Copy to clipboard
+        navigator.clipboard.writeText(billText).then(() => {
+            showNotification('Bill copied to clipboard! You can paste it anywhere.', 'success');
+        }).catch(() => {
+            // Fallback for older browsers
+            const textArea = document.createElement('textarea');
+            textArea.value = billText;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            showNotification('Bill copied to clipboard!', 'success');
+        });
     };
 
-    window.shareSavedBill = (index) => {
+    window.copySavedBill = (index) => {
         const bill = state.bills[index];
         if (!bill) {
             showNotification('Bill not found.', 'error');
@@ -754,46 +737,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const billNumber = state.bills.length - index;
         const billText = generateShareableBillText(bill, billNumber);
-        const customerPhone = bill.customer?.phone;
         
-        // If customer has phone number, create WhatsApp link
-        if (customerPhone) {
-            const phoneNumber = customerPhone.replace(/[^0-9]/g, ''); // Remove non-numeric characters
-            const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(billText)}`;
-            
-            // Try to open WhatsApp
-            window.open(whatsappUrl, '_blank');
-            showNotification('Opening WhatsApp to share bill...', 'info');
-            
-            // Also copy to clipboard as fallback
-            navigator.clipboard.writeText(billText).then(() => {
-                setTimeout(() => {
-                    showNotification('Bill text also copied to clipboard!', 'success');
-                }, 1000);
-            }).catch(() => {
-                // Fallback for older browsers
-                const textArea = document.createElement('textarea');
-                textArea.value = billText;
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-            });
-        } else {
-            // No phone number, just copy to clipboard
-            navigator.clipboard.writeText(billText).then(() => {
-                showNotification('Bill text copied to clipboard! You can paste it in WhatsApp/SMS.', 'success');
-            }).catch(() => {
-                // Fallback for older browsers
-                const textArea = document.createElement('textarea');
-                textArea.value = billText;
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-                showNotification('Bill text copied to clipboard!', 'success');
-            });
-        }
+        // Copy to clipboard
+        navigator.clipboard.writeText(billText).then(() => {
+            showNotification('Bill copied to clipboard! You can paste it anywhere.', 'success');
+        }).catch(() => {
+            // Fallback for older browsers
+            const textArea = document.createElement('textarea');
+            textArea.value = billText;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            showNotification('Bill copied to clipboard!', 'success');
+        });
     };
 
     window.saveBill = () => {
@@ -866,6 +823,11 @@ document.addEventListener('DOMContentLoaded', () => {
         state.currentBill.isSaved = true;
 
         showNotification('Bill saved successfully!', 'success');
+
+        // Clear manual item entry fields
+        if (a.manualItemName) a.manualItemName.value = '';
+        if (a.manualItemQuantity) a.manualItemQuantity.value = '';
+        if (a.manualItemPrice) a.manualItemPrice.value = '';
 
         saveState();
         renderAnalytics();
@@ -975,7 +937,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <p style="margin: 5px 0 0 0;">Credit Amount: <strong>${formatCurrency(customer.credit)}</strong></p>
             </div>
             <div style="text-align: center; margin-top: 20px;">
-                <button class="btn btn-primary" onclick="shareSavedBill(${billIndex})" style="margin-right: 10px;">📱 Share This Bill</button>
+                <button class="btn btn-primary" onclick="copySavedBill(${billIndex})" style="margin-right: 10px;">📋 Copy Bill</button>
                 <button class="btn btn-secondary" onclick="printCreditBill(${billIndex})">🖨️ Print</button>
             </div>
         `;
@@ -1148,7 +1110,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </p>
                     </div>
                     <div>
-                        <button class="btn btn-success" onclick="shareSavedBill(${index})" style="margin-bottom: 5px;">📱 Share</button>
+                        <button class="btn btn-success" onclick="copySavedBill(${index})" style="margin-bottom: 5px;">📋 Copy</button>
                         <button class="btn btn-secondary" onclick="resaveBill(${index})">📝 Re-bill</button>
                         <button class="btn btn-danger" onclick="deleteBill(${index})">🗑️ Delete</button>
                     </div>
@@ -1588,8 +1550,8 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Send reminder if 21 days have passed or never reminded
             if (daysSinceReminder >= 21) {
-                // Get selected language from dropdown or use saved preference
-                const language = a.reminderLanguage?.value || state.settings.reminderLanguage || 'en';
+                // Determine language preference (can be enhanced later)
+                const language = 'en'; // Default to English, can be made configurable
                 const message = generateReminderMessage(customer, customer.credit, language);
                 
                 reminders.push({
@@ -1597,7 +1559,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     customerIndex: index,
                     amount: customer.credit,
                     message: message,
-                    language: language,
                     daysSinceReminder: daysSinceReminder === Infinity ? 'Never' : daysSinceReminder,
                     lastReminderDate: lastReminderDate
                 });
@@ -1623,14 +1584,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? `<p style="font-size: 12px; color: #666; margin-top: 5px;"><strong>Bills:</strong> ${reminder.customer.creditBills.map(b => `Bill #${b.billNumber}`).join(', ')}</p>`
                 : '';
             
-            const languageNames = {
-                'en': 'English',
-                'hi': 'Hindi (हिंदी)',
-                'te': 'Telugu (తెలుగు)'
-            };
-            const currentLanguage = reminder.language || a.reminderLanguage?.value || state.settings.reminderLanguage || 'en';
-            const languageLabel = languageNames[currentLanguage] || 'English';
-            
             reminderElement.innerHTML = `
                 <div style="margin-bottom: 10px;">
                     <strong>${reminder.customer.name}</strong>
@@ -1638,10 +1591,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p style="font-size: 12px; color: #666;">Pending: ${formatCurrency(reminder.amount)}</p>
                     ${billInfo}
                     <p style="font-size: 11px; color: #888;">Days since last reminder: ${reminder.daysSinceReminder}</p>
-                    <p style="font-size: 11px; color: #1976d2; margin-top: 5px;"><strong>🌐 Language:</strong> ${languageLabel}</p>
                 </div>
                 <div style="background: #f5f5f5; padding: 10px; border-radius: 5px; margin: 10px 0;">
-                    <strong style="font-size: 12px;">Reminder Message (${languageLabel}):</strong>
+                    <strong style="font-size: 12px;">Reminder Message:</strong>
                     <p style="white-space: pre-wrap; font-size: 13px; margin-top: 5px;">${reminder.message}</p>
                 </div>
                     <div style="display: flex; gap: 10px; margin-top: 10px;">
@@ -1662,8 +1614,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        // Get selected language from dropdown or use saved preference
-        const language = a.reminderLanguage?.value || state.settings.reminderLanguage || 'en';
+        const language = 'en';
         const message = generateReminderMessage(customer, customer.credit, language);
         const phoneNumber = customer.phone.replace(/[^0-9]/g, ''); // Remove non-numeric characters
         
@@ -1693,8 +1644,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Auto-send reminder if 21 days have passed
             if (daysSinceReminder >= 21) {
-                // Get selected language from dropdown or use saved preference
-                const language = a.reminderLanguage?.value || state.settings.reminderLanguage || 'en';
+                const language = 'en';
                 const message = generateReminderMessage(customer, customer.credit, language);
                 const phoneNumber = customer.phone.replace(/[^0-9]/g, '');
                 
@@ -1728,8 +1678,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const customer = state.customers[customerIndex];
         if (!customer) return;
         
-        // Get selected language from dropdown or use saved preference
-        const language = a.reminderLanguage?.value || state.settings.reminderLanguage || 'en';
+        const language = 'en';
         const message = generateReminderMessage(customer, customer.credit, language);
         
         // Copy to clipboard
@@ -1862,7 +1811,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Check if password is set, if yes, require password verification
         if (state.settings.securityPassword && state.settings.securityPassword.trim() !== '') {
-            // Convert customerIndex to number to ensure consistency
             const customerIndexNum = typeof customerIndex === 'string' ? parseInt(customerIndex, 10) : customerIndex;
             pendingAction = { 
                 type: 'collectPayment', 
@@ -1878,7 +1826,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const executeCollectPayment = (customerIndex, amount) => {
-        // Validate inputs
         if (customerIndex === undefined || customerIndex === null || customerIndex === '') {
             showNotification('Invalid customer selected. Please try again.', 'error');
             return;
@@ -2330,7 +2277,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         cellBg = 'background: #f5f5f5;';
                     }
 
-                    calendarHtml += `<td style="${cellStyle} ${cellBg}">`;
+                    const festivalData = hasFestival ? JSON.stringify(festivals.map(f => ({ name: f.name, type: f.type }))).replace(/"/g, '&quot;') : '';
+                    const clickHandler = hasFestival ? `onclick="showFestivalDetails(${year}, ${month + 1}, ${currentDay}, '${festivalData}')"` : '';
+                    const cursorStyle = hasFestival ? 'cursor: pointer;' : '';
+                    
+                    calendarHtml += `<td style="${cellStyle} ${cellBg} ${cursorStyle}" ${clickHandler} title="${hasFestival ? festivals.map(f => f.name).join(', ') : ''}">`;
                     calendarHtml += `<div style="font-weight: ${isToday ? 'bold' : 'normal'}; font-size: 16px; color: ${isToday ? '#1976d2' : '#333'}; margin-bottom: 5px;">${currentDay}</div>`;
                     
                     if (hasFestival) {
@@ -2427,6 +2378,66 @@ document.addEventListener('DOMContentLoaded', () => {
         renderCalendar();
     };
 
+    window.showFestivalDetails = (year, month, day, festivalDataStr) => {
+        if (!a.festivalModal) return;
+        
+        try {
+            const festivals = JSON.parse(festivalDataStr.replace(/&quot;/g, '"'));
+            const date = new Date(year, month - 1, day);
+            const dateStr = date.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+            
+            let festivalContent = `<div style="text-align: center; margin-bottom: 20px;">`;
+            festivalContent += `<h3 style="color: #1976d2; margin-bottom: 10px;">${dateStr}</h3>`;
+            festivalContent += `</div>`;
+            
+            festivals.forEach(festival => {
+                const isMajor = festival.type === 'major';
+                const isNational = festival.type === 'national';
+                const themeBg = isMajor 
+                    ? 'linear-gradient(135deg, #fff3e0, #ffe0b2, #ffcc80)' 
+                    : isNational 
+                    ? 'linear-gradient(135deg, #e8f5e9, #c8e6c9, #a5d6a7)'
+                    : 'linear-gradient(135deg, #f5f5f5, #e0e0e0)';
+                const emoji = isMajor ? '🎉' : isNational ? '🇮🇳' : '📅';
+                const borderColor = isMajor ? '#f57c00' : isNational ? '#2e7d32' : '#666';
+                
+                festivalContent += `
+                    <div style="background: ${themeBg}; padding: 20px; border-radius: 15px; border-left: 5px solid ${borderColor}; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                        <div style="text-align: center;">
+                            <div style="font-size: 48px; margin-bottom: 10px;">${emoji}</div>
+                            <h2 style="color: ${borderColor}; margin: 10px 0;">${festival.name}</h2>
+                            <p style="color: #666; font-size: 14px; margin-top: 10px;">
+                                ${isMajor ? 'Major Festival - Plan your stock accordingly!' : isNational ? 'National Holiday' : 'Special Day'}
+                            </p>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            a.festivalModalTitle.textContent = `🎉 Festival Details - ${dateStr}`;
+            a.festivalModalContent.innerHTML = festivalContent;
+            a.festivalModal.style.display = 'flex';
+        } catch (error) {
+            showNotification('Error displaying festival details.', 'error');
+            console.error('Festival modal error:', error);
+        }
+    };
+
+    window.closeFestivalModal = () => {
+        if (a.festivalModal) {
+            a.festivalModal.style.display = 'none';
+        }
+    };
+
+    // Close festival modal when clicking outside
+    if (a.festivalModal) {
+        a.festivalModal.addEventListener('click', (e) => {
+            if (e.target === a.festivalModal) {
+                closeFestivalModal();
+            }
+        });
+    }
+
     // --- SETTINGS FUNCTIONS ---
     const renderSettings = () => {
         a.shopName.value = state.settings.shopName;
@@ -2436,30 +2447,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if (a.gstNumber) {
             a.gstNumber.value = state.settings.gstNumber || '';
         }
-        // Clear password fields (never display stored password)
-        if (a.currentPassword) a.currentPassword.value = '';
-        if (a.newPassword) a.newPassword.value = '';
-        if (a.confirmPassword) a.confirmPassword.value = '';
-    };
-
-    window.onReminderLanguageChange = () => {
-        if (a.reminderLanguage) {
-            state.settings.reminderLanguage = a.reminderLanguage.value || 'en';
-            saveState();
-            // Regenerate reminders with new language if reminders are already displayed
-            if (a.reminderList && a.reminderList.children.length > 0) {
-                generateReminders();
-            }
-        }
     };
 
     window.saveSettings = () => {
+        // Check if password is set, if yes, require password verification
+        if (state.settings.securityPassword && state.settings.securityPassword.trim() !== '') {
+            pendingAction = { type: 'saveSettings' };
+            showPasswordModal('Save Settings');
+            return;
+        }
+
+        // If no password set, proceed directly
+        executeSaveSettings();
+    };
+
+    const executeSaveSettings = () => {
         state.settings.shopName = a.shopName.value.trim();
         state.settings.shopAddress = a.shopAddress.value.trim();
         state.settings.shopContact = a.shopContact.value.trim();
         state.settings.upiId = a.settingUpiId.value.trim();
         state.settings.gstNumber = (a.gstNumber?.value || '').trim().toUpperCase();
-        // Reminder language is saved automatically when changed
 
         saveState();
         renderSettings(); // Re-render settings to show saved data
@@ -2467,46 +2474,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update the shop name on the main header immediately
         document.querySelector('.header h1').textContent = `🏪 ${state.settings.shopName}`;
-    };
-
-    window.resetData = () => {
-        // Check if password is set, if yes, require password verification
-        if (state.settings.securityPassword && state.settings.securityPassword.trim() !== '') {
-            if (confirm('ARE YOU ABSOLUTELY SURE? This will delete all your data permanently. This action cannot be undone.')) {
-                pendingAction = { type: 'resetData' };
-                showPasswordModal('Factory Reset');
-                return;
-            }
-            return;
-        }
-
-        // If no password set, proceed with old confirmation
-        if (confirm('ARE YOU ABSOLUTELY SURE? This will delete all your data permanently. This action cannot be undone.')) {
-            if (prompt('To confirm, please type "DELETE" in all caps.') === 'DELETE') {
-                localStorage.removeItem('kiranaProState');
-                location.reload();
-            } else {
-                showNotification('Reset cancelled. Incorrect confirmation.', 'info');
-            }
-        }
-    };
-
-    const executeResetData = () => {
-        // Final confirmation before reset
-        if (confirm('This will permanently delete ALL data. Are you absolutely sure?')) {
-            try {
-                localStorage.removeItem('kiranaProState');
-                showNotification('Data reset successfully. Reloading...', 'success');
-                setTimeout(() => {
-                    location.reload();
-                }, 500);
-            } catch (error) {
-                showNotification('Error resetting data. Please try again.', 'error');
-                console.error('Reset error:', error);
-            }
-        } else {
-            showNotification('Factory reset cancelled.', 'info');
-        }
     };
 
     // Password management functions
@@ -2517,7 +2484,6 @@ document.addEventListener('DOMContentLoaded', () => {
             a.passwordInput.value = '';
             a.passwordInput.focus();
         }
-        // Update modal title if needed
         const modalTitle = a.passwordModal.querySelector('h2');
         if (modalTitle && actionName) {
             modalTitle.textContent = `🔒 Security Password Required - ${actionName}`;
@@ -2560,23 +2526,17 @@ document.addEventListener('DOMContentLoaded', () => {
         // Password verified successfully
         showNotification('Password verified successfully!', 'success');
         
-        // Store action details before closing modal
         const actionToExecute = pendingAction;
-        
-        // Close modal first
         closePasswordModal();
         
-        // Execute pending action after a short delay to ensure modal is closed
         setTimeout(() => {
             if (actionToExecute) {
                 if (actionToExecute.type === 'collectPayment') {
-                    // Convert customerIndex to number if it's a string
                     const customerIndex = typeof actionToExecute.customerIndex === 'string' 
                         ? parseInt(actionToExecute.customerIndex, 10) 
                         : actionToExecute.customerIndex;
                     const amount = parseFloat(actionToExecute.amount);
                     
-                    // Validate before executing
                     if (isNaN(customerIndex) || customerIndex < 0 || !state.customers[customerIndex]) {
                         showNotification('Invalid customer selected. Please try again.', 'error');
                         return;
@@ -2589,6 +2549,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     executeCollectPayment(customerIndex, amount);
                 } else if (actionToExecute.type === 'resetData') {
                     executeResetData();
+                } else if (actionToExecute.type === 'saveSettings') {
+                    executeSaveSettings();
                 }
             }
         }, 100);
@@ -2654,6 +2616,45 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    window.resetData = () => {
+        // Check if password is set, if yes, require password verification
+        if (state.settings.securityPassword && state.settings.securityPassword.trim() !== '') {
+            if (confirm('ARE YOU ABSOLUTELY SURE? This will delete all your data permanently. This action cannot be undone.')) {
+                pendingAction = { type: 'resetData' };
+                showPasswordModal('Factory Reset');
+                return;
+            }
+            return;
+        }
+
+        // If no password set, proceed with old confirmation
+        if (confirm('ARE YOU ABSOLUTELY SURE? This will delete all your data permanently. This action cannot be undone.')) {
+            if (prompt('To confirm, please type "DELETE" in all caps.') === 'DELETE') {
+                localStorage.removeItem('kiranaProState');
+                location.reload();
+            } else {
+                showNotification('Reset cancelled. Incorrect confirmation.', 'info');
+            }
+        }
+    };
+
+    const executeResetData = () => {
+        if (confirm('This will permanently delete ALL data. Are you absolutely sure?')) {
+            try {
+                localStorage.removeItem('kiranaProState');
+                showNotification('Data reset successfully. Reloading...', 'success');
+                setTimeout(() => {
+                    location.reload();
+                }, 500);
+            } catch (error) {
+                showNotification('Error resetting data. Please try again.', 'error');
+                console.error('Reset error:', error);
+            }
+        } else {
+            showNotification('Factory reset cancelled.', 'info');
+        }
+    };
+
     // --- INITIALIZATION ---
     const init = () => {
         loadState();
@@ -2673,11 +2674,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         updateBill();
         updateCreditStatusCard();
-        
-        // Initialize reminder language selector
-        if (a.reminderLanguage) {
-            a.reminderLanguage.value = state.settings.reminderLanguage || 'en';
-        }
         
         // Auto-check for reminders on page load (but don't auto-send, just check)
         // User can manually click "Auto-Send All" if they want
@@ -2710,3 +2706,5 @@ document.addEventListener('DOMContentLoaded', () => {
     // Run initialization
     init();
 });
+
+
