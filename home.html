@@ -71,6 +71,92 @@
             </div>
 
             <h3>Current Inventory</h3>
+            
+            <!-- Advanced Search Section -->
+            <div class="inventory-search-container">
+                <div class="search-header">
+                    <h4>🔍 Advanced Search & Filter</h4>
+                    <button class="btn btn-secondary btn-small" onclick="clearInventoryFilters()" id="clearFiltersBtn" style="display: none;">Clear Filters</button>
+                </div>
+                
+                <div class="search-main-bar">
+                    <input type="text" id="inventorySearch" class="inventory-search-input" placeholder="🔍 Search by item name, unit, or any keyword..." oninput="filterInventory()">
+                    <button class="btn btn-primary" onclick="toggleAdvancedFilters()" id="toggleFiltersBtn">⚙️ Filters</button>
+                </div>
+                
+                <div class="advanced-filters" id="advancedFilters" style="display: none;">
+                    <div class="filters-grid">
+                        <div class="filter-group">
+                            <label>📊 Sort By</label>
+                            <select id="sortBy" onchange="filterInventory()">
+                                <option value="name-asc">Name (A-Z)</option>
+                                <option value="name-desc">Name (Z-A)</option>
+                                <option value="price-asc">Price (Low to High)</option>
+                                <option value="price-desc">Price (High to Low)</option>
+                                <option value="stock-asc">Stock (Low to High)</option>
+                                <option value="stock-desc">Stock (High to Low)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label>💰 Price Range</label>
+                            <div class="range-inputs">
+                                <input type="number" id="minPrice" placeholder="Min ₹" step="0.01" min="0" oninput="filterInventory()">
+                                <span>to</span>
+                                <input type="number" id="maxPrice" placeholder="Max ₹" step="0.01" min="0" oninput="filterInventory()">
+                            </div>
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label>📦 Stock Status</label>
+                            <select id="stockStatus" onchange="filterInventory()">
+                                <option value="all">All Items</option>
+                                <option value="in-stock">In Stock</option>
+                                <option value="low-stock">Low Stock</option>
+                                <option value="out-of-stock">Out of Stock</option>
+                            </select>
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label>📏 Unit Type</label>
+                            <select id="filterUnit" onchange="filterInventory()">
+                                <option value="all">All Units</option>
+                                <option value="kg">Kilogram (kg)</option>
+                                <option value="g">Gram (g)</option>
+                                <option value="l">Liter (l)</option>
+                                <option value="ml">Milliliter (ml)</option>
+                                <option value="piece">Piece</option>
+                                <option value="packet">Packet</option>
+                                <option value="box">Box</option>
+                            </select>
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label>⏰ Expiry Status</label>
+                            <select id="expiryStatus" onchange="filterInventory()">
+                                <option value="all">All Items</option>
+                                <option value="expiring-soon">Expiring Soon (30 days)</option>
+                                <option value="expired">Expired</option>
+                                <option value="no-expiry">No Expiry Date</option>
+                            </select>
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label>📈 Stock Range</label>
+                            <div class="range-inputs">
+                                <input type="number" id="minStock" placeholder="Min" min="0" oninput="filterInventory()">
+                                <span>to</span>
+                                <input type="number" id="maxStock" placeholder="Max" min="0" oninput="filterInventory()">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="search-results-info" id="searchResultsInfo" style="display: none;">
+                    <span id="resultsCount">0</span> items found
+                </div>
+            </div>
+            
             <div id="inventoryList" class="inventory-grid">
                 </div>
         </div>
@@ -460,6 +546,8 @@
                 <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 15px;">
                     <button class="btn btn-success" onclick="exportData()">📥 Export Data</button>
                     <button class="btn btn-primary" onclick="importData()">📤 Import Data</button>
+                    <input type="file" id="importFileInput" accept=".json" style="display: none;">
+                    <button id="hiddenFileTrigger" onclick="document.getElementById('importFileInput').click();" style="display: none;"></button>
                 </div>
                 <p style="color: #666; font-size: 14px; margin-top: 10px;">Export your data to transfer it to another device, or import data from another device.</p>
             </div>

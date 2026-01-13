@@ -41,6 +41,18 @@ document.addEventListener('DOMContentLoaded', () => {
         itemMinStock: document.getElementById('itemMinStock'),
         itemExpiry: document.getElementById('itemExpiry'),
         inventoryList: document.getElementById('inventoryList'),
+        inventorySearch: document.getElementById('inventorySearch'),
+        sortBy: document.getElementById('sortBy'),
+        minPrice: document.getElementById('minPrice'),
+        maxPrice: document.getElementById('maxPrice'),
+        stockStatus: document.getElementById('stockStatus'),
+        filterUnit: document.getElementById('filterUnit'),
+        expiryStatus: document.getElementById('expiryStatus'),
+        minStock: document.getElementById('minStock'),
+        maxStock: document.getElementById('maxStock'),
+        searchResultsInfo: document.getElementById('searchResultsInfo'),
+        resultsCount: document.getElementById('resultsCount'),
+        clearFiltersBtn: document.getElementById('clearFiltersBtn'),
         // Billing
         searchItem: document.getElementById('searchItem'),
         suggestions: document.getElementById('suggestions'),
@@ -255,7 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelector(`.tab[onclick="showTab('${tabId}')"]`).classList.add('active');
 
         // Trigger specific renders for each tab
-        if (tabId === 'inventory') renderInventory();
+        if (tabId === 'inventory') filterInventory();
         if (tabId === 'customers') renderCustomerList();
         if (tabId === 'analytics') renderAnalytics();
         if (tabId === 'expenses') renderExpenses();
@@ -289,7 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         saveState();
-        renderInventory();
+        filterInventory();
         a.itemName.value = '';
         a.itemPrice.value = '';
         a.itemStock.value = '';
@@ -297,28 +309,43 @@ document.addEventListener('DOMContentLoaded', () => {
         a.itemExpiry.value = '';
     };
 
-    const renderInventory = () => {
+    const renderInventory = (itemsToRender = null) => {
         a.inventoryList.innerHTML = '';
-        if (state.inventory.length === 0) {
-            a.inventoryList.innerHTML = `<p style="text-align: center; color: #666;">No items in inventory.</p>`;
+        const items = itemsToRender !== null ? itemsToRender : state.inventory;
+        
+        if (items.length === 0) {
+            const message = itemsToRender !== null && itemsToRender.length === 0 && state.inventory.length > 0
+                ? `<p style="text-align: center; color: #666; padding: 20px;">No items match your search criteria. Try adjusting your filters.</p>`
+                : `<p style="text-align: center; color: #666;">No items in inventory.</p>`;
+            a.inventoryList.innerHTML = message;
             return;
         }
-        state.inventory.forEach((item, index) => {
+        
+        // Find original indices for edit/delete buttons
+        items.forEach((item) => {
+            const originalIndex = state.inventory.findIndex(invItem => 
+                invItem.name === item.name && 
+                invItem.price === item.price && 
+                invItem.unit === item.unit
+            );
+            
             const itemElement = document.createElement('div');
             itemElement.className = 'inventory-item';
             const isLowStock = item.stock < item.minStock;
             const isExpiring = item.expiry && (new Date(item.expiry) - new Date()) / (1000 * 60 * 60 * 24) < 30;
+            const isExpired = item.expiry && new Date(item.expiry) < new Date();
 
             itemElement.innerHTML = `
                 <h4>${item.name}</h4>
                 <p><strong>Price:</strong> ${formatCurrency(item.price)} per ${item.unit}</p>
                 <p><strong>Stock:</strong> <span style="font-weight: bold; color: ${isLowStock ? '#d32f2f' : '#2e7d32'};">${item.stock} ${item.unit}</span></p>
                 ${item.expiry ? `<p><strong>Expiry:</strong> ${formatDate(item.expiry)}</p>` : ''}
-                ${isLowStock ? `<p style="color: #d32f2f; font-weight: bold;">LOW STOCK ALERT!</p>` : ''}
-                ${isExpiring ? `<p style="color: #ffc107; font-weight: bold;">EXPIRING SOON!</p>` : ''}
+                ${isLowStock ? `<p style="color: #d32f2f; font-weight: bold;">⚠️ LOW STOCK ALERT!</p>` : ''}
+                ${isExpiring && !isExpired ? `<p style="color: #ffc107; font-weight: bold;">⏰ EXPIRING SOON!</p>` : ''}
+                ${isExpired ? `<p style="color: #d32f2f; font-weight: bold;">❌ EXPIRED!</p>` : ''}
                 <div style="margin-top: 15px; display: flex; gap: 8px;">
-                    <button class="btn btn-secondary btn-small" onclick="editItem(${index})">✏️ Edit</button>
-                    <button class="btn btn-danger btn-small" onclick="deleteItem(${index})">🗑️ Delete</button>
+                    <button class="btn btn-secondary btn-small" onclick="editItem(${originalIndex})">✏️ Edit</button>
+                    <button class="btn btn-danger btn-small" onclick="deleteItem(${originalIndex})">🗑️ Delete</button>
                 </div>
             `;
             a.inventoryList.appendChild(itemElement);
@@ -347,10 +374,161 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!proceed) return;
         state.inventory.splice(index, 1);
         saveState();
-        renderInventory();
+        filterInventory(); // Use filterInventory instead of renderInventory to maintain search state
         if (showNotif) {
             showNotification(`${item.name} deleted from inventory.`, 'success');
         }
+    };
+
+    // --- ADVANCED INVENTORY SEARCH FUNCTIONS ---
+    window.filterInventory = () => {
+        // If DOM elements not ready, just render normally
+        if (!a.inventorySearch || !a.inventoryList) {
+            renderInventory();
+            return;
+        }
+        
+        const searchQuery = (a.inventorySearch.value || '').trim().toLowerCase();
+        const sortBy = a.sortBy ? a.sortBy.value : 'name-asc';
+        const minPrice = a.minPrice ? parseFloat(a.minPrice.value) : null;
+        const maxPrice = a.maxPrice ? parseFloat(a.maxPrice.value) : null;
+        const stockStatus = a.stockStatus ? a.stockStatus.value : 'all';
+        const filterUnit = a.filterUnit ? a.filterUnit.value : 'all';
+        const expiryStatus = a.expiryStatus ? a.expiryStatus.value : 'all';
+        const minStock = a.minStock ? parseFloat(a.minStock.value) : null;
+        const maxStock = a.maxStock ? parseFloat(a.maxStock.value) : null;
+
+        let filtered = [...state.inventory];
+
+        // Text search filter
+        if (searchQuery) {
+            filtered = filtered.filter(item => {
+                const searchableText = `${item.name} ${item.unit} ${item.price}`.toLowerCase();
+                return searchableText.includes(searchQuery);
+            });
+        }
+
+        // Price range filter
+        if (minPrice !== null && !isNaN(minPrice)) {
+            filtered = filtered.filter(item => item.price >= minPrice);
+        }
+        if (maxPrice !== null && !isNaN(maxPrice)) {
+            filtered = filtered.filter(item => item.price <= maxPrice);
+        }
+
+        // Stock status filter
+        if (stockStatus !== 'all') {
+            filtered = filtered.filter(item => {
+                const isLowStock = item.stock < item.minStock;
+                const isOutOfStock = item.stock === 0;
+                if (stockStatus === 'low-stock') return isLowStock && !isOutOfStock;
+                if (stockStatus === 'out-of-stock') return isOutOfStock;
+                if (stockStatus === 'in-stock') return !isLowStock && !isOutOfStock;
+                return true;
+            });
+        }
+
+        // Unit filter
+        if (filterUnit !== 'all') {
+            filtered = filtered.filter(item => item.unit === filterUnit);
+        }
+
+        // Expiry status filter
+        if (expiryStatus !== 'all') {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            filtered = filtered.filter(item => {
+                if (!item.expiry) {
+                    return expiryStatus === 'no-expiry';
+                }
+                const expiryDate = new Date(item.expiry);
+                expiryDate.setHours(0, 0, 0, 0);
+                const daysUntilExpiry = (expiryDate - today) / (1000 * 60 * 60 * 24);
+                
+                if (expiryStatus === 'expired') return expiryDate < today;
+                if (expiryStatus === 'expiring-soon') return daysUntilExpiry <= 30 && daysUntilExpiry >= 0;
+                if (expiryStatus === 'no-expiry') return false;
+                return true;
+            });
+        }
+
+        // Stock range filter
+        if (minStock !== null && !isNaN(minStock)) {
+            filtered = filtered.filter(item => item.stock >= minStock);
+        }
+        if (maxStock !== null && !isNaN(maxStock)) {
+            filtered = filtered.filter(item => item.stock <= maxStock);
+        }
+
+        // Sorting
+        filtered.sort((a, b) => {
+            const [field, order] = sortBy.split('-');
+            let comparison = 0;
+            
+            if (field === 'name') {
+                comparison = a.name.localeCompare(b.name);
+            } else if (field === 'price') {
+                comparison = a.price - b.price;
+            } else if (field === 'stock') {
+                comparison = a.stock - b.stock;
+            }
+            
+            return order === 'desc' ? -comparison : comparison;
+        });
+
+        // Update results count
+        if (a.searchResultsInfo && a.resultsCount) {
+            if (filtered.length !== state.inventory.length || searchQuery || 
+                minPrice !== null || maxPrice !== null || stockStatus !== 'all' || 
+                filterUnit !== 'all' || expiryStatus !== 'all' || 
+                minStock !== null || maxStock !== null) {
+                a.resultsCount.textContent = filtered.length;
+                a.searchResultsInfo.style.display = 'block';
+            } else {
+                a.searchResultsInfo.style.display = 'none';
+            }
+        }
+
+        // Show/hide clear filters button
+        if (a.clearFiltersBtn) {
+            const hasActiveFilters = searchQuery || 
+                (minPrice !== null && !isNaN(minPrice)) || 
+                (maxPrice !== null && !isNaN(maxPrice)) || 
+                stockStatus !== 'all' || 
+                filterUnit !== 'all' || 
+                expiryStatus !== 'all' || 
+                (minStock !== null && !isNaN(minStock)) || 
+                (maxStock !== null && !isNaN(maxStock));
+            a.clearFiltersBtn.style.display = hasActiveFilters ? 'inline-block' : 'none';
+        }
+
+        // Render filtered results
+        renderInventory(filtered);
+    };
+
+    window.toggleAdvancedFilters = () => {
+        const filtersDiv = document.getElementById('advancedFilters');
+        const toggleBtn = document.getElementById('toggleFiltersBtn');
+        if (filtersDiv && toggleBtn) {
+            const isVisible = filtersDiv.style.display !== 'none';
+            filtersDiv.style.display = isVisible ? 'none' : 'block';
+            toggleBtn.textContent = isVisible ? '⚙️ Filters' : '✖️ Close Filters';
+        }
+    };
+
+    window.clearInventoryFilters = () => {
+        if (a.inventorySearch) a.inventorySearch.value = '';
+        if (a.sortBy) a.sortBy.value = 'name-asc';
+        if (a.minPrice) a.minPrice.value = '';
+        if (a.maxPrice) a.maxPrice.value = '';
+        if (a.stockStatus) a.stockStatus.value = 'all';
+        if (a.filterUnit) a.filterUnit.value = 'all';
+        if (a.expiryStatus) a.expiryStatus.value = 'all';
+        if (a.minStock) a.minStock.value = '';
+        if (a.maxStock) a.maxStock.value = '';
+        
+        filterInventory();
+        if (a.clearFiltersBtn) a.clearFiltersBtn.style.display = 'none';
     };
 
     // --- BILLING FUNCTIONS ---
@@ -640,14 +818,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const billContent = `
             <div style="position: relative; background: linear-gradient(135deg, #fff9e6, #fff8dc); padding: 30px; border-radius: 15px; border: 2px solid #f0e68c; min-height: 100%;">
+                <!-- Logo/Image at top left corner with thickness effect -->
+                <div style="position: absolute; top: 10px; left: 10px; z-index: 1; opacity: 0.85; filter: drop-shadow(3px 3px 6px rgba(0,0,0,0.2)) drop-shadow(0 0 10px rgba(255,255,255,0.3));">
+                    <img src="images/bill-logo.png" alt="Shop Logo" style="max-width: 80px; max-height: 80px; object-fit: contain; border-radius: 8px; background: rgba(255,255,255,0.6); padding: 5px; box-shadow: 0 4px 12px rgba(0,0,0,0.15), inset 0 1px 3px rgba(255,255,255,0.5);">
+                </div>
+                
                 <!-- Corner grocery items decorations -->
-                <div style="position: absolute; top: 10px; left: 10px; font-size: 30px; opacity: 0.3; z-index: 1;">🛒</div>
                 <div style="position: absolute; top: 10px; right: 10px; font-size: 30px; opacity: 0.3; z-index: 1;">🥫</div>
                 <div style="position: absolute; bottom: 10px; left: 10px; font-size: 30px; opacity: 0.3; z-index: 1;">🍚</div>
                 <div style="position: absolute; bottom: 10px; right: 10px; font-size: 30px; opacity: 0.3; z-index: 1;">🛍️</div>
                 
                 <!-- Additional grocery items around corners -->
-                <div style="position: absolute; top: 50px; left: 15px; font-size: 25px; opacity: 0.25; z-index: 1;">🥛</div>
                 <div style="position: absolute; top: 50px; right: 15px; font-size: 25px; opacity: 0.25; z-index: 1;">🍞</div>
                 <div style="position: absolute; bottom: 50px; left: 15px; font-size: 25px; opacity: 0.25; z-index: 1;">🥜</div>
                 <div style="position: absolute; bottom: 50px; right: 15px; font-size: 25px; opacity: 0.25; z-index: 1;">🧴</div>
@@ -992,14 +1173,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const billContent = `
             <div style="position: relative; background: linear-gradient(135deg, #fff9e6, #fff8dc); padding: 30px; border-radius: 15px; border: 2px solid #f0e68c; min-height: 100%;">
+                <!-- Logo/Image at top left corner with thickness effect -->
+                <div style="position: absolute; top: 10px; left: 10px; z-index: 1; opacity: 0.85; filter: drop-shadow(3px 3px 6px rgba(0,0,0,0.2)) drop-shadow(0 0 10px rgba(255,255,255,0.3));">
+                    <img src="images/bill-logo.png" alt="Shop Logo" style="max-width: 80px; max-height: 80px; object-fit: contain; border-radius: 8px; background: rgba(255,255,255,0.6); padding: 5px; box-shadow: 0 4px 12px rgba(0,0,0,0.15), inset 0 1px 3px rgba(255,255,255,0.5);">
+                </div>
+                
                 <!-- Corner grocery items decorations -->
-                <div style="position: absolute; top: 10px; left: 10px; font-size: 30px; opacity: 0.3; z-index: 1;">🛒</div>
                 <div style="position: absolute; top: 10px; right: 10px; font-size: 30px; opacity: 0.3; z-index: 1;">🥫</div>
                 <div style="position: absolute; bottom: 10px; left: 10px; font-size: 30px; opacity: 0.3; z-index: 1;">🍚</div>
                 <div style="position: absolute; bottom: 10px; right: 10px; font-size: 30px; opacity: 0.3; z-index: 1;">🛍️</div>
                 
                 <!-- Additional grocery items around corners -->
-                <div style="position: absolute; top: 50px; left: 15px; font-size: 25px; opacity: 0.25; z-index: 1;">🥛</div>
                 <div style="position: absolute; top: 50px; right: 15px; font-size: 25px; opacity: 0.25; z-index: 1;">🍞</div>
                 <div style="position: absolute; bottom: 50px; left: 15px; font-size: 25px; opacity: 0.25; z-index: 1;">🥜</div>
                 <div style="position: absolute; bottom: 50px; right: 15px; font-size: 25px; opacity: 0.25; z-index: 1;">🧴</div>
@@ -1127,7 +1311,10 @@ document.addEventListener('DOMContentLoaded', () => {
             </head>
             <body>
                 <div class="bill-container">
-                    <div class="corner-icon top-left">🛒</div>
+                    <!-- Logo/Image at top left corner with thickness effect -->
+                    <div style="position: absolute; top: 10px; left: 10px; z-index: 1; opacity: 0.85; filter: drop-shadow(3px 3px 6px rgba(0,0,0,0.2)) drop-shadow(0 0 10px rgba(255,255,255,0.3));">
+                        <img src="images/bill-logo.png" alt="Shop Logo" style="max-width: 80px; max-height: 80px; object-fit: contain; border-radius: 8px; background: rgba(255,255,255,0.6); padding: 5px; box-shadow: 0 4px 12px rgba(0,0,0,0.15), inset 0 1px 3px rgba(255,255,255,0.5);">
+                    </div>
                     <div class="corner-icon top-right">🥫</div>
                     <div class="corner-icon bottom-left">🍚</div>
                     <div class="corner-icon bottom-right">🛍️</div>
@@ -2291,6 +2478,76 @@ document.addEventListener('DOMContentLoaded', () => {
             '10': [{ day: 2, name: 'Gandhi Jayanti', type: 'national' }, { day: 22, name: 'Dussehra', type: 'major' }, { day: 1, name: 'Karva Chauth', type: 'major' }, { day: 6, name: 'Diwali', type: 'major' }, { day: 7, name: 'Govardhan Puja', type: 'major' }, { day: 8, name: 'Bhai Dooj', type: 'major' }],
             '11': [{ day: 20, name: 'Chhath Puja', type: 'major' }, { day: 15, name: 'Children\'s Day', type: 'minor' }],
             '12': [{ day: 25, name: 'Christmas', type: 'major' }]
+        },
+        '2026': {
+            '1': [{ day: 14, name: 'Makar Sankranti', type: 'major' }, { day: 26, name: 'Republic Day', type: 'national' }],
+            '2': [{ day: 14, name: 'Valentine\'s Day', type: 'minor' }, { day: 27, name: 'Shivratri', type: 'major' }],
+            '3': [{ day: 3, name: 'Holi', type: 'major' }, { day: 18, name: 'Ram Navami', type: 'major' }],
+            '4': [{ day: 2, name: 'Eid-ul-Fitr', type: 'major' }, { day: 14, name: 'Ambedkar Jayanti', type: 'national' }, { day: 10, name: 'Ram Navami', type: 'major' }],
+            '5': [{ day: 1, name: 'Labour Day', type: 'national' }, { day: 1, name: 'Buddha Purnima', type: 'major' }],
+            '6': [{ day: 26, name: 'Eid-ul-Adha', type: 'major' }],
+            '7': [{ day: 27, name: 'Muharram', type: 'major' }],
+            '8': [{ day: 22, name: 'Raksha Bandhan', type: 'major' }, { day: 15, name: 'Independence Day', type: 'national' }, { day: 3, name: 'Janmashtami', type: 'major' }],
+            '9': [{ day: 15, name: 'Ganesh Chaturthi', type: 'major' }, { day: 25, name: 'Onam', type: 'major' }],
+            '10': [{ day: 2, name: 'Gandhi Jayanti', type: 'national' }, { day: 11, name: 'Dussehra', type: 'major' }, { day: 20, name: 'Karva Chauth', type: 'major' }, { day: 25, name: 'Diwali', type: 'major' }, { day: 26, name: 'Govardhan Puja', type: 'major' }, { day: 27, name: 'Bhai Dooj', type: 'major' }],
+            '11': [{ day: 8, name: 'Chhath Puja', type: 'major' }, { day: 15, name: 'Children\'s Day', type: 'minor' }],
+            '12': [{ day: 25, name: 'Christmas', type: 'major' }]
+        },
+        '2027': {
+            '1': [{ day: 14, name: 'Makar Sankranti', type: 'major' }, { day: 26, name: 'Republic Day', type: 'national' }],
+            '2': [{ day: 14, name: 'Valentine\'s Day', type: 'minor' }, { day: 16, name: 'Shivratri', type: 'major' }],
+            '3': [{ day: 22, name: 'Holi', type: 'major' }, { day: 7, name: 'Ram Navami', type: 'major' }],
+            '4': [{ day: 22, name: 'Eid-ul-Fitr', type: 'major' }, { day: 14, name: 'Ambedkar Jayanti', type: 'national' }, { day: 30, name: 'Ram Navami', type: 'major' }],
+            '5': [{ day: 1, name: 'Labour Day', type: 'national' }, { day: 20, name: 'Buddha Purnima', type: 'major' }],
+            '6': [{ day: 16, name: 'Eid-ul-Adha', type: 'major' }],
+            '7': [{ day: 16, name: 'Muharram', type: 'major' }],
+            '8': [{ day: 11, name: 'Raksha Bandhan', type: 'major' }, { day: 15, name: 'Independence Day', type: 'national' }, { day: 23, name: 'Janmashtami', type: 'major' }],
+            '9': [{ day: 4, name: 'Ganesh Chaturthi', type: 'major' }, { day: 14, name: 'Onam', type: 'major' }],
+            '10': [{ day: 2, name: 'Gandhi Jayanti', type: 'national' }, { day: 1, name: 'Dussehra', type: 'major' }, { day: 9, name: 'Karva Chauth', type: 'major' }, { day: 14, name: 'Diwali', type: 'major' }, { day: 15, name: 'Govardhan Puja', type: 'major' }, { day: 16, name: 'Bhai Dooj', type: 'major' }],
+            '11': [{ day: 28, name: 'Chhath Puja', type: 'major' }, { day: 15, name: 'Children\'s Day', type: 'minor' }],
+            '12': [{ day: 25, name: 'Christmas', type: 'major' }]
+        },
+        '2028': {
+            '1': [{ day: 14, name: 'Makar Sankranti', type: 'major' }, { day: 26, name: 'Republic Day', type: 'national' }],
+            '2': [{ day: 14, name: 'Valentine\'s Day', type: 'minor' }, { day: 5, name: 'Shivratri', type: 'major' }],
+            '3': [{ day: 11, name: 'Holi', type: 'major' }, { day: 26, name: 'Ram Navami', type: 'major' }],
+            '4': [{ day: 10, name: 'Eid-ul-Fitr', type: 'major' }, { day: 14, name: 'Ambedkar Jayanti', type: 'national' }, { day: 18, name: 'Ram Navami', type: 'major' }],
+            '5': [{ day: 1, name: 'Labour Day', type: 'national' }, { day: 9, name: 'Buddha Purnima', type: 'major' }],
+            '6': [{ day: 5, name: 'Eid-ul-Adha', type: 'major' }],
+            '7': [{ day: 5, name: 'Muharram', type: 'major' }],
+            '8': [{ day: 30, name: 'Raksha Bandhan', type: 'major' }, { day: 15, name: 'Independence Day', type: 'national' }, { day: 11, name: 'Janmashtami', type: 'major' }],
+            '9': [{ day: 22, name: 'Ganesh Chaturthi', type: 'major' }, { day: 2, name: 'Onam', type: 'major' }],
+            '10': [{ day: 2, name: 'Gandhi Jayanti', type: 'national' }, { day: 19, name: 'Dussehra', type: 'major' }, { day: 28, name: 'Karva Chauth', type: 'major' }, { day: 3, name: 'Diwali', type: 'major' }, { day: 4, name: 'Govardhan Puja', type: 'major' }, { day: 5, name: 'Bhai Dooj', type: 'major' }],
+            '11': [{ day: 16, name: 'Chhath Puja', type: 'major' }, { day: 15, name: 'Children\'s Day', type: 'minor' }],
+            '12': [{ day: 25, name: 'Christmas', type: 'major' }]
+        },
+        '2029': {
+            '1': [{ day: 14, name: 'Makar Sankranti', type: 'major' }, { day: 26, name: 'Republic Day', type: 'national' }],
+            '2': [{ day: 14, name: 'Valentine\'s Day', type: 'minor' }, { day: 23, name: 'Shivratri', type: 'major' }],
+            '3': [{ day: 1, name: 'Holi', type: 'major' }, { day: 15, name: 'Ram Navami', type: 'major' }],
+            '4': [{ day: 30, name: 'Eid-ul-Fitr', type: 'major' }, { day: 14, name: 'Ambedkar Jayanti', type: 'national' }, { day: 7, name: 'Ram Navami', type: 'major' }],
+            '5': [{ day: 1, name: 'Labour Day', type: 'national' }, { day: 28, name: 'Buddha Purnima', type: 'major' }],
+            '6': [{ day: 25, name: 'Eid-ul-Adha', type: 'major' }],
+            '7': [{ day: 25, name: 'Muharram', type: 'major' }],
+            '8': [{ day: 19, name: 'Raksha Bandhan', type: 'major' }, { day: 15, name: 'Independence Day', type: 'national' }, { day: 31, name: 'Janmashtami', type: 'major' }],
+            '9': [{ day: 12, name: 'Ganesh Chaturthi', type: 'major' }, { day: 22, name: 'Onam', type: 'major' }],
+            '10': [{ day: 2, name: 'Gandhi Jayanti', type: 'national' }, { day: 8, name: 'Dussehra', type: 'major' }, { day: 17, name: 'Karva Chauth', type: 'major' }, { day: 22, name: 'Diwali', type: 'major' }, { day: 23, name: 'Govardhan Puja', type: 'major' }, { day: 24, name: 'Bhai Dooj', type: 'major' }],
+            '11': [{ day: 5, name: 'Chhath Puja', type: 'major' }, { day: 15, name: 'Children\'s Day', type: 'minor' }],
+            '12': [{ day: 25, name: 'Christmas', type: 'major' }]
+        },
+        '2030': {
+            '1': [{ day: 14, name: 'Makar Sankranti', type: 'major' }, { day: 26, name: 'Republic Day', type: 'national' }],
+            '2': [{ day: 14, name: 'Valentine\'s Day', type: 'minor' }, { day: 12, name: 'Shivratri', type: 'major' }],
+            '3': [{ day: 20, name: 'Holi', type: 'major' }, { day: 4, name: 'Ram Navami', type: 'major' }],
+            '4': [{ day: 19, name: 'Eid-ul-Fitr', type: 'major' }, { day: 14, name: 'Ambedkar Jayanti', type: 'national' }, { day: 27, name: 'Ram Navami', type: 'major' }],
+            '5': [{ day: 1, name: 'Labour Day', type: 'national' }, { day: 17, name: 'Buddha Purnima', type: 'major' }],
+            '6': [{ day: 14, name: 'Eid-ul-Adha', type: 'major' }],
+            '7': [{ day: 14, name: 'Muharram', type: 'major' }],
+            '8': [{ day: 8, name: 'Raksha Bandhan', type: 'major' }, { day: 15, name: 'Independence Day', type: 'national' }, { day: 20, name: 'Janmashtami', type: 'major' }],
+            '9': [{ day: 1, name: 'Ganesh Chaturthi', type: 'major' }, { day: 11, name: 'Onam', type: 'major' }],
+            '10': [{ day: 2, name: 'Gandhi Jayanti', type: 'national' }, { day: 27, name: 'Dussehra', type: 'major' }, { day: 6, name: 'Karva Chauth', type: 'major' }, { day: 11, name: 'Diwali', type: 'major' }, { day: 12, name: 'Govardhan Puja', type: 'major' }, { day: 13, name: 'Bhai Dooj', type: 'major' }],
+            '11': [{ day: 24, name: 'Chhath Puja', type: 'major' }, { day: 15, name: 'Children\'s Day', type: 'minor' }],
+            '12': [{ day: 25, name: 'Christmas', type: 'major' }]
         }
     };
 
@@ -2298,7 +2555,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const yearStr = year.toString();
         const monthStr = month.toString();
         const yearFestivals = festivalsData[yearStr];
-        if (!yearFestivals) return [];
+        if (!yearFestivals) {
+            // If year not found, try to get festivals from a base year pattern
+            // Use modulo to cycle through available years for future dates
+            const baseYear = year >= 2024 && year <= 2030 ? yearStr : 
+                           year > 2030 ? '2030' : 
+                           year < 2024 ? '2024' : yearStr;
+            const baseFestivals = festivalsData[baseYear];
+            if (!baseFestivals) return [];
+            const monthFestivals = baseFestivals[monthStr];
+            if (!monthFestivals) return [];
+            return monthFestivals.filter(f => f.day === day);
+        }
         const monthFestivals = yearFestivals[monthStr];
         if (!monthFestivals) return [];
         return monthFestivals.filter(f => f.day === day);
@@ -2322,18 +2590,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const daysInMonth = lastDay.getDate();
         const startingDayOfWeek = firstDay.getDay();
 
-        // Calendar HTML
+        // Calendar HTML with mobile responsiveness
         let calendarHtml = `
-            <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden;">
+            <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; font-size: clamp(10px, 2vw, 14px);">
                 <thead>
                     <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-                        <th style="padding: 15px; text-align: center; font-weight: bold;">Sun</th>
-                        <th style="padding: 15px; text-align: center; font-weight: bold;">Mon</th>
-                        <th style="padding: 15px; text-align: center; font-weight: bold;">Tue</th>
-                        <th style="padding: 15px; text-align: center; font-weight: bold;">Wed</th>
-                        <th style="padding: 15px; text-align: center; font-weight: bold;">Thu</th>
-                        <th style="padding: 15px; text-align: center; font-weight: bold;">Fri</th>
-                        <th style="padding: 15px; text-align: center; font-weight: bold;">Sat</th>
+                        <th style="padding: clamp(8px, 2vw, 15px); text-align: center; font-weight: bold; font-size: clamp(10px, 2vw, 14px);">Sun</th>
+                        <th style="padding: clamp(8px, 2vw, 15px); text-align: center; font-weight: bold; font-size: clamp(10px, 2vw, 14px);">Mon</th>
+                        <th style="padding: clamp(8px, 2vw, 15px); text-align: center; font-weight: bold; font-size: clamp(10px, 2vw, 14px);">Tue</th>
+                        <th style="padding: clamp(8px, 2vw, 15px); text-align: center; font-weight: bold; font-size: clamp(10px, 2vw, 14px);">Wed</th>
+                        <th style="padding: clamp(8px, 2vw, 15px); text-align: center; font-weight: bold; font-size: clamp(10px, 2vw, 14px);">Thu</th>
+                        <th style="padding: clamp(8px, 2vw, 15px); text-align: center; font-weight: bold; font-size: clamp(10px, 2vw, 14px);">Fri</th>
+                        <th style="padding: clamp(8px, 2vw, 15px); text-align: center; font-weight: bold; font-size: clamp(10px, 2vw, 14px);">Sat</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -2347,9 +2615,9 @@ document.addEventListener('DOMContentLoaded', () => {
             calendarHtml += '<tr>';
             for (let i = 0; i < 7; i++) {
                 if (isFirstWeek && i < startingDayOfWeek) {
-                    calendarHtml += '<td style="padding: 10px; text-align: center; height: 80px; border: 1px solid #e0e0e0;"></td>';
+                    calendarHtml += '<td style="padding: clamp(5px, 1.5vw, 10px); text-align: center; height: clamp(60px, 12vw, 80px); border: 1px solid #e0e0e0; min-height: 60px;"></td>';
                 } else if (currentDay > daysInMonth) {
-                    calendarHtml += '<td style="padding: 10px; text-align: center; height: 80px; border: 1px solid #e0e0e0;"></td>';
+                    calendarHtml += '<td style="padding: clamp(5px, 1.5vw, 10px); text-align: center; height: clamp(60px, 12vw, 80px); border: 1px solid #e0e0e0; min-height: 60px;"></td>';
                 } else {
                     const festivals = getFestivalsForDate(year, month + 1, currentDay);
                     const isToday = isCurrentMonth && currentDay === today.getDate();
@@ -2357,7 +2625,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const majorFestival = festivals.find(f => f.type === 'major');
                     const nationalFestival = festivals.find(f => f.type === 'national');
 
-                    let cellStyle = 'padding: 10px; text-align: center; height: 80px; border: 1px solid #e0e0e0; vertical-align: top;';
+                    let cellStyle = 'padding: clamp(5px, 1.5vw, 10px); text-align: center; height: clamp(60px, 12vw, 80px); border: 1px solid #e0e0e0; vertical-align: top; min-height: 60px;';
                     let cellBg = '';
                     
                     if (isToday) {
@@ -2374,13 +2642,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     const clickHandler = hasFestival ? `onclick="showFestivalDetails(${year}, ${month + 1}, ${currentDay})"` : '';
                     const cursorStyle = hasFestival ? 'cursor: pointer;' : '';
                     calendarHtml += `<td style="${cellStyle} ${cellBg} ${cursorStyle}" ${clickHandler}>`;
-                    calendarHtml += `<div style="font-weight: ${isToday ? 'bold' : 'normal'}; font-size: 16px; color: ${isToday ? '#1976d2' : '#333'}; margin-bottom: 5px;">${currentDay}</div>`;
+                    calendarHtml += `<div style="font-weight: ${isToday ? 'bold' : 'normal'}; font-size: clamp(12px, 2.5vw, 16px); color: ${isToday ? '#1976d2' : '#333'}; margin-bottom: 3px;">${currentDay}</div>`;
                     
                     if (hasFestival) {
                         festivals.forEach(festival => {
                             const festivalColor = festival.type === 'major' ? '#f57c00' : festival.type === 'national' ? '#2e7d32' : '#666';
                             const festivalEmoji = festival.type === 'major' ? '🎉' : festival.type === 'national' ? '🇮🇳' : '📅';
-                            calendarHtml += `<div style="font-size: 10px; color: ${festivalColor}; margin: 2px 0; font-weight: bold;" title="${festival.name}">${festivalEmoji} ${festival.name}</div>`;
+                            calendarHtml += `<div style="font-size: clamp(8px, 1.5vw, 10px); color: ${festivalColor}; margin: 1px 0; font-weight: bold; line-height: 1.2; overflow: hidden; text-overflow: ellipsis;" title="${festival.name}">${festivalEmoji} ${festival.name}</div>`;
                         });
                     }
                     
@@ -2626,110 +2894,157 @@ document.addEventListener('DOMContentLoaded', () => {
         showNotification('Data exported successfully! You can now transfer this file to another device.', 'success');
     };
 
+    // Initialize import file input handler on page load
+    const initImportFileInput = () => {
+        const importInput = document.getElementById('importFileInput');
+        if (importInput) {
+            importInput.addEventListener('change', function (e) {
+                const file = e.target.files[0];
+
+                // Reset input value to allow selecting same file again
+                e.target.value = '';
+
+                if (!file) {
+                    // User cancelled
+                    return;
+                }
+
+                // Validate file type
+                if (!file.name.toLowerCase().endsWith('.json')) {
+                    showNotification('Please select a valid JSON file.', 'error');
+                    return;
+                }
+
+                const reader = new FileReader();
+
+                reader.onload = (event) => {
+                    try {
+                        const importedData = JSON.parse(event.target.result);
+
+                        // Validate the imported data structure
+                        if (!importedData.data) {
+                            showNotification('Invalid data file format. Please ensure the file was exported from this application.', 'error');
+                            return;
+                        }
+
+                        // Confirm before importing
+                        if (confirm('Importing data will replace all current data. Are you sure you want to continue?')) {
+                            // Backup current state
+                            const backup = JSON.stringify(state);
+
+                            try {
+                                // Import the data
+                                if (importedData.data.inventory) state.inventory = importedData.data.inventory;
+                                if (importedData.data.customers) state.customers = importedData.data.customers;
+                                if (importedData.data.bills) state.bills = importedData.data.bills;
+                                if (importedData.data.expenses) state.expenses = importedData.data.expenses;
+                                if (importedData.data.creditTransactions) state.creditTransactions = importedData.data.creditTransactions;
+                                if (importedData.data.settings) {
+                                    state.settings = {
+                                        shopName: importedData.data.settings.shopName || state.settings.shopName,
+                                        shopAddress: importedData.data.settings.shopAddress || state.settings.shopAddress,
+                                        shopContact: importedData.data.settings.shopContact || state.settings.shopContact,
+                                        upiId: importedData.data.settings.upiId || state.settings.upiId,
+                                        gstNumber: importedData.data.settings.gstNumber || state.settings.gstNumber,
+                                        password: importedData.data.settings.password || state.settings.password
+                                    };
+                                }
+
+                                // Reset current bill on import
+                                state.currentBill = {
+                                    items: [],
+                                    customer: { name: '', phone: '' },
+                                    total: 0,
+                                    discountAmount: 0,
+                                    paymentMethod: 'cash',
+                                    paymentDetails: null,
+                                    isSaved: false
+                                };
+
+                                // Initialize customer properties
+                                state.customers.forEach(customer => {
+                                    if (!customer.creditBills) customer.creditBills = [];
+                                    if (!customer.lastReminderDate) customer.lastReminderDate = null;
+                                    if (!customer.loyaltyPoints) customer.loyaltyPoints = 0;
+                                });
+
+                                // Save to localStorage
+                                saveState();
+
+                                // Refresh all views
+                                renderSettings();
+                                renderInventory();
+                                renderCustomerList();
+                                renderAnalytics();
+                                renderExpenses();
+                                renderCreditHistory();
+                                updateBill();
+                                updateCreditStatusCard();
+
+                                // Update header
+                                const headerElement = document.querySelector('.header h1');
+                                if (headerElement) {
+                                    headerElement.textContent = `🏪 ${state.settings.shopName}`;
+                                }
+
+                                showNotification('Data imported successfully!', 'success');
+                            } catch (error) {
+                                // Restore backup on error
+                                try {
+                                    state = JSON.parse(backup);
+                                } catch (parseError) {
+                                    console.error('Failed to restore backup:', parseError);
+                                }
+                                showNotification('Error importing data. Operation cancelled.', 'error');
+                                console.error('Import error:', error);
+                            }
+                        }
+                    } catch (error) {
+                        showNotification('Error reading file. Please check the file format.', 'error');
+                        console.error('File read error:', error);
+                    }
+                };
+
+                reader.onerror = () => {
+                    showNotification('Error reading file. Please try again.', 'error');
+                };
+
+                reader.readAsText(file);
+            });
+        }
+    };
+
     window.importData = () => {
-        // Password protection
-        if (!verifyPassword('import data')) {
+        // Get the file input
+        const importInput = document.getElementById('importFileInput');
+        const hiddenTrigger = document.getElementById('hiddenFileTrigger');
+        
+        if (!importInput) {
+            showNotification('Import feature not available. Please refresh the page.', 'error');
             return;
         }
 
-        // Create file input element
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json';
-        input.style.display = 'none';
-        
-        input.onchange = (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                try {
-                    const importedData = JSON.parse(event.target.result);
-                    
-                    // Validate the imported data structure
-                    if (!importedData.data) {
-                        showNotification('Invalid data file format.', 'error');
-                        return;
-                    }
-                    
-                    // Confirm before importing
-                    if (confirm('Importing data will replace all current data. Are you sure you want to continue?')) {
-                        // Backup current state
-                        const backup = JSON.stringify(state);
-                        
-                        try {
-                            // Import the data
-                            if (importedData.data.inventory) state.inventory = importedData.data.inventory;
-                            if (importedData.data.customers) state.customers = importedData.data.customers;
-                            if (importedData.data.bills) state.bills = importedData.data.bills;
-                            if (importedData.data.expenses) state.expenses = importedData.data.expenses;
-                            if (importedData.data.creditTransactions) state.creditTransactions = importedData.data.creditTransactions;
-                            if (importedData.data.settings) {
-                                state.settings = {
-                                    shopName: importedData.data.settings.shopName || state.settings.shopName,
-                                    shopAddress: importedData.data.settings.shopAddress || state.settings.shopAddress,
-                                    shopContact: importedData.data.settings.shopContact || state.settings.shopContact,
-                                    upiId: importedData.data.settings.upiId || state.settings.upiId,
-                                    gstNumber: importedData.data.settings.gstNumber || state.settings.gstNumber,
-                                    password: importedData.data.settings.password || state.settings.password
-                                };
-                            }
-                            
-                            // Reset current bill on import
-                            state.currentBill = {
-                                items: [],
-                                customer: { name: '', phone: '' },
-                                total: 0,
-                                discountAmount: 0,
-                                paymentMethod: 'cash',
-                                paymentDetails: null,
-                                isSaved: false
-                            };
-                            
-                            // Initialize customer properties
-                            state.customers.forEach(customer => {
-                                if (!customer.creditBills) customer.creditBills = [];
-                                if (!customer.lastReminderDate) customer.lastReminderDate = null;
-                                if (!customer.loyaltyPoints) customer.loyaltyPoints = 0;
-                            });
-                            
-                            // Save to localStorage
-                            saveState();
-                            
-                            // Refresh all views
-                            renderSettings();
-                            renderInventory();
-                            renderCustomerList();
-                            renderAnalytics();
-                            renderExpenses();
-                            renderCreditHistory();
-                            updateBill();
-                            updateCreditStatusCard();
-                            
-                            // Update header
-                            document.querySelector('.header h1').textContent = `🏪 ${state.settings.shopName}`;
-                            
-                            showNotification('Data imported successfully!', 'success');
-                        } catch (error) {
-                            // Restore backup on error
-                            state = JSON.parse(backup);
-                            showNotification('Error importing data. Operation cancelled.', 'error');
-                            console.error('Import error:', error);
-                        }
-                    }
-                } catch (error) {
-                    showNotification('Error reading file. Please check the file format.', 'error');
-                    console.error('File read error:', error);
-                }
-            };
-            
-            reader.readAsText(file);
-        };
-        
-        document.body.appendChild(input);
-        input.click();
-        document.body.removeChild(input);
+        // Reset value to allow selecting same file again
+        importInput.value = '';
+
+        // Try clicking the hidden button first (it has onclick handler)
+        // This maintains user interaction better than direct input.click()
+        if (hiddenTrigger) {
+            try {
+                hiddenTrigger.click();
+                return;
+            } catch (err) {
+                console.log('Hidden trigger failed, trying direct input click');
+            }
+        }
+
+        // Fallback: try direct input click
+        try {
+            importInput.click();
+        } catch (err) {
+            console.error('Error triggering file input:', err);
+            showNotification('Unable to open file dialog. Please refresh the page and try again.', 'error');
+        }
     };
 
     window.changePassword = () => {
@@ -2782,7 +3097,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Load saved settings on app start
         renderSettings();
-        renderInventory();
+        filterInventory(); // Will fallback to renderInventory if DOM not ready
         renderCustomerList();
         renderAnalytics();
         renderExpenses();
@@ -2792,6 +3107,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         updateBill();
         updateCreditStatusCard();
+        initImportFileInput();
         
         // Auto-check for reminders on page load (but don't auto-send, just check)
         // User can manually click "Auto-Send All" if they want
@@ -2824,3 +3140,4 @@ document.addEventListener('DOMContentLoaded', () => {
     // Run initialization
     init();
 });
+
